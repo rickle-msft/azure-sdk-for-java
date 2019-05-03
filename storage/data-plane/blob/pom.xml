@@ -11,7 +11,7 @@
       <artifactId>azure-storage-java</artifactId>
       <version>11</version>
       <relativePath>../pom.xml</relativePath>
-    </parent>
+  </parent>
 
     <artifactId>azure-storage-blob</artifactId>
     <version>11.0.1</version>
