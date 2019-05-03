@@ -7,10 +7,10 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
   <parent>
-      <groupId>com.microsoft.azure</groupId>
-      <artifactId>azure-storage-java</artifactId>
-      <version>11</version>
-      <relativePath>../pom.xml</relativePath>
+    <groupId>com.microsoft.azure</groupId>
+    <artifactId>azure-storage-java</artifactId>
+    <version>11</version>
+    <relativePath>../pom.xml</relativePath>
   </parent>
 
     <artifactId>azure-storage-blob</artifactId>

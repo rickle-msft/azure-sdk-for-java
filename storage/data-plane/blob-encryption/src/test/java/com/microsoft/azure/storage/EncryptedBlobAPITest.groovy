@@ -239,7 +239,7 @@ class EncryptedBlobAPITest extends APISpec {
     // Request one byte. Test key resolver. Lots more. Require encryption tests (and downloading blobs that aren't encryption, esp. ones that are smaller than what the expanded range would try).
     // Samples. API refs. Reliable download.
     // Test EncryptedBlobRange
-    // One blob sample is failing in the onErrorResumeNext case because it gets weird with the generics
+    // One blob sample is failing in the onErrorResumeNext case because it gets weird with the generics and downloadResponse
 
     @Unroll
     def "Small blob tests"(int offset, Integer count, int size, int status) {

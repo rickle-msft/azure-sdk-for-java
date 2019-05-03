@@ -161,6 +161,7 @@ public class EncryptedBlobURL extends BlobURL {
     }
 
     private Long blobSize(BlobDownloadHeaders headers) {
+        // e.g. 0-5/1024
         if (headers.contentRange() != null) {
             String range = headers.contentRange();
             return Long.valueOf(range.split("/")[1]);

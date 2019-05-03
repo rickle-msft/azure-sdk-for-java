@@ -212,7 +212,7 @@ class APISpec extends Specification {
         HttpPipeline pipeline = StorageURL.createPipeline(primaryCreds, new PipelineOptions())
 
         ServiceURL serviceURL = new ServiceURL(
-                new URL("http://" + System.getenv().get("ACCOUNT_NAME") + ".blob.core.windows.net"), pipeline)
+                new URL("http://" + primaryCreds.getAccountName() + ".blob.core.windows.net"), pipeline)
         // There should not be more than 5000 containers from these tests
         for (ContainerItem c : serviceURL.listContainersSegment(null,
                 new ListContainersOptions().withPrefix(containerPrefix), null).blockingGet()
