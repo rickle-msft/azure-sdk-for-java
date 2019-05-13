@@ -308,29 +308,6 @@ public class BlobURL extends StorageURL {
                 destAccessConditions.modifiedAccessConditions(), destAccessConditions.leaseAccessConditions()));
     }
 
-    // Accept continuation
-    public Flowable<BlobDeleteResponse> directoryDelete() {
-        return this.storageClient.generatedBlobs().deleteWithRestResponseAsync(null, null, null, null, null, null, null) // pass continuation
-                .toFlowable()
-                .flatMap(this::directoryDeleteHelper);
-    }
-
-    private Flowable<BlobDeleteResponse> directoryDeleteHelper(BlobDeleteResponse response) {
-        // replace "date" with "nextMarker"
-        if (response.headers().date() == null) {
-            return Flowable.empty();
-        }
-        return Flowable.just(response)
-                .concatWith(this.storageClient.generatedBlobs().deleteWithRestResponseAsync(null, null, null, null, null, null, null) // pass continuation
-                        .toFlowable()
-                        .flatMap(this::directoryDeleteHelper));
-    }
-
-    private void recursiveDeleteTest( ){
-        this.directoryDelete().blockingLast(); // Could hang forever
-        this.directoryDelete().forEach(response -> System.out.println(response.headers().date())); // Log token for crash recovery or store it in some other state
-    }
-
     /**
      * Reads a range of bytes from a blob. The response also includes the blob's properties and metadata. For more
      * information, see the <a href="https://docs.microsoft.com/rest/api/storageservices/get-blob">Azure Docs</a>.

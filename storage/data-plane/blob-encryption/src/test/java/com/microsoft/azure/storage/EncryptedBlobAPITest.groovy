@@ -240,6 +240,8 @@ class EncryptedBlobAPITest extends APISpec {
     // Samples. API refs. Reliable download.
     // Test EncryptedBlobRange
     // One blob sample is failing in the onErrorResumeNext case because it gets weird with the generics and downloadResponse
+    // Change licenses for files in these projects and update intellij config
+    //  consider changing (outputSize > encryptedByteBuffer.remaining()) to test against .capacity. This will require having the test Flowable allocate new memory instead of duplicating, but that's more inline with the protocol layer
 
     @Unroll
     def "Small blob tests"(int offset, Integer count, int size, int status) {
