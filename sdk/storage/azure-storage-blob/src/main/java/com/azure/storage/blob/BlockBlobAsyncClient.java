@@ -294,7 +294,6 @@ public final class BlockBlobAsyncClient extends BlobAsyncClient {
                         pool.returnBuffer(buffer);
                         return blockId;
                     }).flux();
-
             }) // TODO: parallelism?
             .collect(Collectors.toList())
             .flatMap(ids ->

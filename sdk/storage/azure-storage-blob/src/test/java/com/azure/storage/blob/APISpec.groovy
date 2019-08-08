@@ -42,6 +42,8 @@ import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets
 import java.time.Duration
 import java.time.OffsetDateTime
+import java.util.function.BiConsumer
+import java.util.function.Function
 import java.util.function.Supplier
 
 class APISpec extends Specification {
