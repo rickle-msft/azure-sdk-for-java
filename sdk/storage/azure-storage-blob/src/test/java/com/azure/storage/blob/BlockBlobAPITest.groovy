@@ -4,12 +4,28 @@
 
 package com.azure.storage.blob
 
-import com.azure.core.http.*
+import com.azure.core.http.HttpHeaders
 import com.azure.core.http.policy.HttpLogDetailLevel
+import com.azure.storage.blob.models.BlobAccessConditions
+import com.azure.storage.blob.models.BlobHTTPHeaders
+import com.azure.storage.blob.models.BlobRange
+import com.azure.storage.blob.models.BlockItem
+import com.azure.storage.blob.models.BlockListType
+import com.azure.storage.blob.models.LeaseAccessConditions
+import com.azure.storage.blob.models.Metadata
+import com.azure.storage.blob.models.ModifiedAccessConditions
+import com.azure.storage.blob.models.PublicAccessType
+import com.azure.storage.blob.models.SourceModifiedAccessConditions
+import com.azure.storage.blob.models.StorageErrorCode
+import com.azure.storage.blob.models.StorageErrorException
+import com.azure.storage.blob.models.StorageException
+import com.azure.core.http.HttpMethod
+import com.azure.core.http.HttpPipelineCallContext
+import com.azure.core.http.HttpPipelineNextPolicy
+import com.azure.core.http.HttpRequest
+import com.azure.core.http.HttpResponse
 import com.azure.core.http.policy.HttpPipelinePolicy
 import com.azure.core.http.rest.Response
-import com.azure.storage.blob.BlobProperties
-import com.azure.storage.blob.models.*
 import com.azure.storage.common.policy.RequestRetryOptions
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
@@ -18,6 +34,7 @@ import spock.lang.Unroll
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
+import java.util.function.Function
 
 class BlockBlobAPITest extends APISpec {
     BlockBlobClient bc
@@ -915,6 +932,7 @@ class BlockBlobAPITest extends APISpec {
         null     | null       | null        | null         | garbageLeaseID
     }
 
+    // TODO:
     /*def "Upload NRF progress"() {
         setup:
         def data = getRandomData(BlockBlobURL.MAX_UPLOAD_BLOB_BYTES + 1)
@@ -932,23 +950,23 @@ class BlockBlobAPITest extends APISpec {
         // We should receive exactly one notification of the completed progress.
         1 * mockReceiver.reportProgress(data.remaining()) */
 
-    /*
-    We should receive at least one notification reporting an intermediary value per block, but possibly more
-    notifications will be received depending on the implementation. We specify numBlocks - 1 because the last block
-    will be the total size as above. Finally, we assert that the number reported monotonically increases.
-     */
-    /*(numBlocks - 1.._) * mockReceiver.reportProgress(!data.remaining()) >> { long bytesTransferred ->
-        if (!(bytesTransferred > prevCount)) {
-            throw new IllegalArgumentException("Reported progress should monotonically increase")
-        } else {
-            prevCount = bytesTransferred
+        /*
+        We should receive at least one notification reporting an intermediary value per block, but possibly more
+        notifications will be received depending on the implementation. We specify numBlocks - 1 because the last block
+        will be the total size as above. Finally, we assert that the number reported monotonically increases.
+         */
+        /*(numBlocks - 1.._) * mockReceiver.reportProgress(!data.remaining()) >> { long bytesTransferred ->
+            if (!(bytesTransferred > prevCount)) {
+                throw new IllegalArgumentException("Reported progress should monotonically increase")
+            } else {
+                prevCount = bytesTransferred
+            }
         }
-    }
 
-    // We should receive no notifications that report more progress than the size of the file.
-    0 * mockReceiver.reportProgress({ it > data.remaining() })
-    notThrown(IllegalArgumentException)
-}*/
+        // We should receive no notifications that report more progress than the size of the file.
+        0 * mockReceiver.reportProgress({ it > data.remaining() })
+        notThrown(IllegalArgumentException)
+    }*/
 
     def "Buffered upload network error"() {
         setup:
