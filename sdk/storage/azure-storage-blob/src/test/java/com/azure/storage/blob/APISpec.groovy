@@ -72,6 +72,7 @@ class APISpec extends Specification {
         }
     }
 
+
     static int defaultDataSize = defaultData.remaining()
 
     static final Flux<ByteBuffer> defaultFlux = Flux.just(defaultData).map{buffer -> buffer.duplicate()}
@@ -174,8 +175,8 @@ class APISpec extends Specification {
 
     //TODO: Should this go in core.
      static Mono<ByteBuffer> collectBytesInBuffer(Flux<ByteBuffer> content) {
-         return FluxUtil.collectBytesInByteBufferStream(content).map{bytes -> ByteBuffer.wrap(bytes)}
-    }
+         return FluxUtil.collectBytesInByteBufferStream(content).map { bytes -> ByteBuffer.wrap(bytes) }
+     }
 
     static TestMode setupTestMode() {
         String testMode = ConfigurationManager.getConfiguration().get(AZURE_TEST_MODE)
