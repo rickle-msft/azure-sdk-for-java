@@ -32,7 +32,6 @@ import com.azure.storage.blob.models.StorageServiceProperties
 import com.azure.storage.common.Constants
 import com.azure.storage.common.credentials.SASTokenCredential
 import com.azure.storage.common.credentials.SharedKeyCredential
-import io.netty.buffer.ByteBuf
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import spock.lang.Shared
@@ -43,8 +42,6 @@ import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets
 import java.time.Duration
 import java.time.OffsetDateTime
-import java.util.function.BiConsumer
-import java.util.function.Function
 import java.util.function.Supplier
 
 class APISpec extends Specification {
@@ -71,7 +68,6 @@ class APISpec extends Specification {
             return new ByteArrayInputStream(defaultText.getBytes(StandardCharsets.UTF_8))
         }
     }
-
 
     static int defaultDataSize = defaultData.remaining()
 
