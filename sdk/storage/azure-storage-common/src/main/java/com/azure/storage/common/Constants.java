@@ -60,6 +60,29 @@ public final class Constants {
         }
     }
 
+    public static final class EncryptionConstants {
+        public static final String ENCRYPTION_PROTOCOL_V1 = "1.0";
+
+        public static final String AGENT_METADATA_KEY = "EncryptionLibrary";
+
+        public static final String AES_CBC_PKCS5PADDING = "AES/CBC/PKCS5Padding";
+
+        public static final String AES_CBC_NO_PADDING = "AES/CBC/NoPadding";
+
+        public static final String AES = "AES";
+
+        public static final String AGENT_METADATA_VALUE = "JavaTrack2" + ServiceConfiguration.BlobConfiguration.VERSION;
+
+        public static final String ENCRYPTION_DATA_KEY = "encryptiondata";
+
+        public static final String ENCRYPTION_MODE = "FullBlob";
+
+        public static final int ENCRYPTION_BLOCK_SIZE = 16;
+
+        private EncryptionConstants() {
+        }
+    }
+
     /**
      * Defines constants for use with HTTP headers.
      */

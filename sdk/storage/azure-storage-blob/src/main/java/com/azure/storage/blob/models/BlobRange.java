@@ -19,6 +19,14 @@ public final class BlobRange {
 
     /**
      * Specifies the download operation to start from the offset position (zero-based) and download the
+     * rest of the entire blob to the end. An empty BlobRange effectively specifies the whole blob.
+     */
+    public BlobRange() {
+
+    }
+
+    /**
+     * Specifies the download operation to start from the offset position (zero-based) and download the
      * rest of the entire blob to the end.
      *
      * @param offset

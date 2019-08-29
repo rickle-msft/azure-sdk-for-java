@@ -5,6 +5,7 @@ package com.azure.storage.queue;
 import com.azure.core.http.HttpPipeline;
 import com.azure.core.implementation.annotation.ServiceClientBuilder;
 import com.azure.core.util.logging.ClientLogger;
+import com.azure.storage.common.ServiceConfiguration.QueueConfiguration;
 import com.azure.storage.common.Utility;
 import com.azure.storage.common.credentials.SASTokenCredential;
 import com.azure.storage.common.credentials.SharedKeyCredential;

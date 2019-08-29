@@ -7,6 +7,7 @@ import com.azure.core.http.HttpPipeline;
 import com.azure.core.implementation.annotation.ServiceClientBuilder;
 import com.azure.core.util.logging.ClientLogger;
 import com.azure.storage.blob.implementation.AzureBlobStorageBuilder;
+import com.azure.storage.common.ServiceConfiguration.BlobConfiguration;
 import com.azure.storage.common.credentials.SASTokenCredential;
 
 import java.net.MalformedURLException;

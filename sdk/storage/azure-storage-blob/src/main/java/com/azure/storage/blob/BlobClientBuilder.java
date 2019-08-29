@@ -10,6 +10,7 @@ import com.azure.storage.blob.implementation.AzureBlobStorageBuilder;
 import com.azure.storage.blob.implementation.AzureBlobStorageImpl;
 import com.azure.storage.blob.models.LeaseAccessConditions;
 import com.azure.storage.blob.models.PageRange;
+import com.azure.storage.common.ServiceConfiguration.BlobConfiguration;
 import com.azure.storage.common.credentials.SASTokenCredential;
 import reactor.core.publisher.Flux;
 
