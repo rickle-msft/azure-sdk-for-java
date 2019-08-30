@@ -35,7 +35,9 @@ import static com.azure.storage.common.Constants.EncryptionConstants.ENCRYPTION_
 
 /**
  * Represents a blob encryption policy that is used to perform envelope encryption/decryption of Azure storage blobs.
- * This class is immutable as it is a property on an EncryptedBlobURL, which needs to be thread safe.
+ * This class is immutable as it is a property on an EncryptedBlobURL, which needs to be thread safe. Please see the
+ * <a href="https://docs.microsoft.com/en-us/azure/storage/common/storage-client-side-encryption-java?toc=%2fazure%2fstorage%2fblobs%2ftoc.json">Azure Docs</a>
+ * for more information.
  */
 public final class BlobEncryptionPolicy {
     private final ClientLogger logger = new ClientLogger(BlobEncryptionPolicy.class);
@@ -67,7 +69,8 @@ public final class BlobEncryptionPolicy {
      *
      * @param key An object of type {@link IKey} that is used to wrap/unwrap the content encryption key.
      * @param keyResolver  The key resolver used to select the correct key for decrypting existing blobs.
-     * @param requireEncryption If set to true, decryptBlob() will throw an IllegalArgumentException if blob is not encrypted.
+     * @param requireEncryption If set to true, decryptBlob() will throw an IllegalArgumentException if blob is not
+     *                          encrypted.
      */
     public BlobEncryptionPolicy(IKey key, IKeyResolver keyResolver, boolean requireEncryption) {
         this.keyWrapper = key;
