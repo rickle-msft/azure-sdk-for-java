@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-package com.azure.storage.blob.models;
+package com.azure.storage.blob;
 
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;

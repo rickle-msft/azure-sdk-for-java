@@ -4,17 +4,33 @@
 
 package com.azure.storage.blob
 
-import com.azure.core.http.*
+import com.azure.core.http.HttpHeaders
+import com.azure.core.http.HttpMethod
+import com.azure.core.http.HttpPipelineCallContext
+import com.azure.core.http.HttpPipelineNextPolicy
+import com.azure.core.http.HttpRequest
 import com.azure.core.http.policy.HttpLogDetailLevel
 import com.azure.core.http.policy.HttpPipelinePolicy
 import com.azure.core.http.rest.Response
-import com.azure.storage.blob.BlobProperties
-import com.azure.storage.blob.models.*
+import com.azure.storage.blob.models.BlobAccessConditions
+import com.azure.storage.blob.models.BlobHTTPHeaders
+import com.azure.storage.blob.models.BlobRange
+import com.azure.storage.blob.models.BlockItem
+import com.azure.storage.blob.models.LeaseAccessConditions
+import com.azure.storage.blob.models.Metadata
+import com.azure.storage.blob.models.ModifiedAccessConditions
+import com.azure.storage.blob.models.PublicAccessType
+import com.azure.storage.blob.models.SourceModifiedAccessConditions
+import com.azure.storage.blob.models.StorageErrorCode
+import com.azure.storage.blob.models.StorageException
 import com.azure.storage.common.policy.RequestRetryOptions
+import com.microsoft.azure.keyvault.cryptography.SymmetricKey
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import spock.lang.Unroll
 
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
@@ -23,11 +39,23 @@ class BlockBlobAPITest extends APISpec {
     BlockBlobClient bc
     BlockBlobAsyncClient bac
 
+    String keyId
+    IKey symmetricKey
+    BlobEncryptionPolicy blobEncryptionPolicy
+
     def setup() {
         bc = cc.getBlockBlobClient(generateBlobName())
         bc.upload(defaultInputStream.get(), defaultDataSize)
         bac = ccAsync.getBlockBlobAsyncClient(generateBlobName())
         bac.upload(defaultFlux, defaultDataSize)
+
+        keyId = "keyId"
+        KeyGenerator keyGen = KeyGenerator.getInstance("AES")
+        keyGen.init(256)
+        SecretKey secretKey = keyGen.generateKey()
+        symmetricKey = new SymmetricKey(keyId, secretKey.getEncoded())
+
+        blobEncryptionPolicy = new BlobEncryptionPolicy(symmetricKey, null, false)
     }
 
     def "Stage block"() {
@@ -571,17 +599,6 @@ class BlockBlobAPITest extends APISpec {
         validateBasicHeaders(response.headers())
         response.headers().value("Content-MD5") != null
         Boolean.parseBoolean(response.headers().value("x-ms-request-server-encrypted"))
-    }
-
-    def "Upload file test"() {
-        setup:
-        def file = getRandomFile(20*1024*1024)
-
-        when:
-        bc.uploadFromFile(file.toPath().toString())
-
-        then:
-        notThrown(Exception)
     }
 
     def "Upload min"() {

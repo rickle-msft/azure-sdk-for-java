@@ -421,10 +421,16 @@ public class BlobAsyncClient {
     }
 
     Mono<Response<Flux<ByteBuffer>>> downloadWithResponse(BlobRange range, ReliableDownloadOptions options, BlobAccessConditions accessConditions, boolean rangeGetContentMD5, Context context) {
-        return download(range, accessConditions, rangeGetContentMD5, context)
+        EncryptedBlobRange encryptedRange = new EncryptedBlobRange(range);
+
+        return download(this.encryptionPolicy == null ? range : encryptedRange.toBlobRange(), accessConditions,
+            rangeGetContentMD5, context)
             .map(response -> new SimpleResponse<>(
                 response.rawResponse(),
-                response.body(options).switchIfEmpty(Flux.just(ByteBuffer.wrap(new byte[0])))));
+                this.encryptionPolicy == null
+                    ? response.body(options).switchIfEmpty(Flux.just(ByteBuffer.wrap(new byte[0])))
+                    : this.encryptionPolicy.decryptBlob(response.headers().metadata(), response.body(options),
+                    encryptedRange, true)));
     }
 
     /**

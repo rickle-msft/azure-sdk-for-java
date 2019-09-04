@@ -163,7 +163,8 @@ public final class BlockBlobAsyncClient extends BlobAsyncClient {
             ? new BlobAccessConditions() : accessConditions;
 
         Mono<Flux<ByteBuffer>> dataFinal;
-        // TODO: Ensure this works with retries
+        // TODO: Ensure this works with retries.
+        // TODO: Json resource files to test cross-SDK
         if (this.encryptionPolicy != null) {
             dataFinal = encryptionPolicy.prepareToSendEncryptedRequest(data, metadataFinal);
         } else {

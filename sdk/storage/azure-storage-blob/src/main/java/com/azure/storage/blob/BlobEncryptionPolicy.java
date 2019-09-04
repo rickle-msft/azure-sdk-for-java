@@ -4,8 +4,6 @@
 package com.azure.storage.blob;
 
 import com.azure.core.util.logging.ClientLogger;
-import com.azure.storage.blob.models.IKey;
-import com.azure.storage.blob.models.IKeyResolver;
 import com.azure.storage.blob.models.Metadata;
 import com.azure.storage.common.Constants;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -13,7 +11,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import reactor.core.Exceptions;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.util.function.Tuple2;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
