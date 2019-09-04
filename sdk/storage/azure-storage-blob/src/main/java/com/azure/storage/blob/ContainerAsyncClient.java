@@ -117,10 +117,25 @@ public final class ContainerAsyncClient {
      * container.
      */
     public BlockBlobAsyncClient getBlockBlobAsyncClient(String blobName, String snapshot) {
-        return new BlockBlobAsyncClient(new AzureBlobStorageBuilder()
-            .url(Utility.appendToURLPath(getContainerUrl(), blobName).toString())
-            .pipeline(azureBlobStorage.getHttpPipeline())
-            .build(), snapshot);
+        return getBlockBlobAsyncClient(blobName, snapshot, null);
+    }
+
+    /**
+     * Creates a new {@link BlockBlobAsyncClient} object by concatenating the blobName to the end of
+     * ContainerAsyncClient's URL. The new BlockBlobAsyncClient uses the same request policy pipeline as the
+     * ContainerAsyncClient. To change the pipeline, create the BlockBlobAsyncClient and then call its WithPipeline
+     * method passing in the desired pipeline object. Or, call this package's NewBlockBlobAsyncClient instead of calling
+     * this object's NewBlockBlobAsyncClient method.
+     *
+     * @param blobName A {@code String} representing the name of the blob.
+     * @param snapshot the snapshot identifier for the blob.
+     * @param encryptionPolicy {@link BlobEncryptionPolicy}
+     * @return A new {@link BlockBlobAsyncClient} object which references the blob with the specified name in this
+     * container.
+     */
+    public BlockBlobAsyncClient getBlockBlobAsyncClient(String blobName, String snapshot,
+        BlobEncryptionPolicy encryptionPolicy) {
+        return getBlobAsyncClient(blobName, snapshot, encryptionPolicy).asBlockBlobAsyncClient();
     }
 
     /**
@@ -151,10 +166,25 @@ public final class ContainerAsyncClient {
      * container.
      */
     public PageBlobAsyncClient getPageBlobAsyncClient(String blobName, String snapshot) {
-        return new PageBlobAsyncClient(new AzureBlobStorageBuilder()
-            .url(Utility.appendToURLPath(getContainerUrl(), blobName).toString())
-            .pipeline(azureBlobStorage.getHttpPipeline())
-            .build(), snapshot);
+        return getPageBlobAsyncClient(blobName, snapshot, null);
+    }
+
+    /**
+     * Creates creates a new PageBlobAsyncClient object by concatenating blobName to the end of ContainerAsyncClient's
+     * URL. The new PageBlobAsyncClient uses the same request policy pipeline as the ContainerAsyncClient. To change the
+     * pipeline, create the PageBlobAsyncClient and then call its WithPipeline method passing in the desired pipeline
+     * object. Or, call this package's NewPageBlobAsyncClient instead of calling this object's NewPageBlobAsyncClient
+     * method.
+     *
+     * @param blobName A {@code String} representing the name of the blob.
+     * @param snapshot the snapshot identifier for the blob.
+     * @param encryptionPolicy {@link BlobEncryptionPolicy}
+     * @return A new {@link PageBlobAsyncClient} object which references the blob with the specified name in this
+     * container.
+     */
+    public PageBlobAsyncClient getPageBlobAsyncClient(String blobName, String snapshot,
+        BlobEncryptionPolicy encryptionPolicy) {
+        return getBlobAsyncClient(blobName, snapshot, encryptionPolicy).asPageBlobAsyncClient();
     }
 
     /**
@@ -185,10 +215,25 @@ public final class ContainerAsyncClient {
      * container.
      */
     public AppendBlobAsyncClient getAppendBlobAsyncClient(String blobName, String snapshot) {
-        return new AppendBlobAsyncClient(new AzureBlobStorageBuilder()
-            .url(Utility.appendToURLPath(getContainerUrl(), blobName).toString())
-            .pipeline(azureBlobStorage.getHttpPipeline())
-            .build(), snapshot);
+        return getAppendBlobAsyncClient(blobName, snapshot, null);
+    }
+
+    /**
+     * Creates creates a new AppendBlobAsyncClient object by concatenating blobName to the end of ContainerAsyncClient's
+     * URL. The new AppendBlobAsyncClient uses the same request policy pipeline as the ContainerAsyncClient. To change
+     * the pipeline, create the AppendBlobAsyncClient and then call its WithPipeline method passing in the desired
+     * pipeline object. Or, call this package's NewAppendBlobAsyncClient instead of calling this object's
+     * NewAppendBlobAsyncClient method.
+     *
+     * @param blobName A {@code String} representing the name of the blob.
+     * @param snapshot the snapshot identifier for the blob.
+     * @param encryptionPolicy {@link BlobEncryptionPolicy}
+     * @return A new {@link AppendBlobAsyncClient} object which references the blob with the specified name in this
+     * container.
+     */
+    public AppendBlobAsyncClient getAppendBlobAsyncClient(String blobName, String snapshot,
+        BlobEncryptionPolicy encryptionPolicy) {
+        return getBlobAsyncClient(blobName, snapshot, encryptionPolicy).asAppendBlobAsyncClient();
     }
 
     /**
@@ -215,10 +260,25 @@ public final class ContainerAsyncClient {
      * @return A new {@link BlobAsyncClient} object which references the blob with the specified name in this container.
      */
     public BlobAsyncClient getBlobAsyncClient(String blobName, String snapshot) {
+        return getBlobAsyncClient(blobName, snapshot, null);
+    }
+
+    /**
+     * Creates a new BlobAsyncClient object by concatenating blobName to the end of ContainerAsyncClient's URL. The new
+     * BlobAsyncClient uses the same request policy pipeline as the ContainerAsyncClient. To change the pipeline, create
+     * the BlobAsyncClient and then call its WithPipeline method passing in the desired pipeline object. Or, call this
+     * package's getBlobAsyncClient instead of calling this object's getBlobAsyncClient method.
+     *
+     * @param blobName A {@code String} representing the name of the blob.
+     * @param snapshot the snapshot identifier for the blob.
+     * @param encryptionPolicy {@link BlobEncryptionPolicy}
+     * @return A new {@link BlobAsyncClient} object which references the blob with the specified name in this container.
+     */
+    public BlobAsyncClient getBlobAsyncClient(String blobName, String snapshot, BlobEncryptionPolicy encryptionPolicy) {
         return new BlobAsyncClient(new AzureBlobStorageBuilder()
             .url(Utility.appendToURLPath(getContainerUrl(), blobName).toString())
             .pipeline(azureBlobStorage.getHttpPipeline())
-            .build(), snapshot);
+            .build(), snapshot, encryptionPolicy);
     }
 
     /**

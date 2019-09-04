@@ -1,7 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
-package com.azure.storage.blob.models;
+package com.azure.storage.blob;
+
+import com.azure.storage.blob.models.BlobRange;
 
 import static com.azure.storage.common.Constants.EncryptionConstants.ENCRYPTION_BLOCK_SIZE;
 

@@ -8,10 +8,8 @@ import com.azure.core.implementation.annotation.ServiceClientBuilder;
 import com.azure.core.util.logging.ClientLogger;
 import com.azure.storage.blob.implementation.AzureBlobStorageBuilder;
 import com.azure.storage.blob.implementation.AzureBlobStorageImpl;
-import com.azure.storage.blob.models.BlobEncryptionPolicy;
 import com.azure.storage.blob.models.LeaseAccessConditions;
 import com.azure.storage.blob.models.PageRange;
-import com.azure.storage.common.ServiceConfiguration.BlobConfiguration;
 import com.azure.storage.common.credentials.SASTokenCredential;
 import reactor.core.publisher.Flux;
 
@@ -56,6 +54,7 @@ public final class BlobClientBuilder extends BaseBlobClientBuilder<BlobClientBui
     private String containerName;
     private String blobName;
     private String snapshot;
+    private BlobEncryptionPolicy encryptionPolicy;
 
     /**
      * Creates a builder instance that is able to configure and construct Storage Blob clients.
@@ -98,7 +97,7 @@ public final class BlobClientBuilder extends BaseBlobClientBuilder<BlobClientBui
      * @throws NullPointerException If {@code endpoint}, {@code containerName}, or {@code blobName} is {@code null}.
      */
     public BlobAsyncClient buildBlobAsyncClient() {
-        return new BlobAsyncClient(constructImpl(), snapshot);
+        return new BlobAsyncClient(constructImpl(), snapshot, encryptionPolicy);
     }
 
     /**
@@ -122,7 +121,7 @@ public final class BlobClientBuilder extends BaseBlobClientBuilder<BlobClientBui
      * @throws NullPointerException If {@code endpoint}, {@code containerName}, or {@code blobName} is {@code null}.
      */
     public AppendBlobAsyncClient buildAppendBlobAsyncClient() {
-        return new AppendBlobAsyncClient(constructImpl(), snapshot);
+        return new AppendBlobAsyncClient(constructImpl(), snapshot, encryptionPolicy);
     }
 
     /**
@@ -149,7 +148,7 @@ public final class BlobClientBuilder extends BaseBlobClientBuilder<BlobClientBui
      * @throws NullPointerException If {@code endpoint}, {@code containerName}, or {@code blobName} is {@code null}.
      */
     public BlockBlobAsyncClient buildBlockBlobAsyncClient() {
-        return new BlockBlobAsyncClient(constructImpl(), snapshot);
+        return new BlockBlobAsyncClient(constructImpl(), snapshot, encryptionPolicy);
     }
 
     /**
@@ -174,7 +173,7 @@ public final class BlobClientBuilder extends BaseBlobClientBuilder<BlobClientBui
      * @throws NullPointerException If {@code endpoint}, {@code containerName}, or {@code blobName} is {@code null}.
      */
     public PageBlobAsyncClient buildPageBlobAsyncClient() {
-        return new PageBlobAsyncClient(constructImpl(), snapshot);
+        return new PageBlobAsyncClient(constructImpl(), snapshot, encryptionPolicy);
     }
 
     /**
@@ -233,6 +232,17 @@ public final class BlobClientBuilder extends BaseBlobClientBuilder<BlobClientBui
      */
     public BlobClientBuilder snapshot(String snapshot) {
         this.snapshot = snapshot;
+        return this;
+    }
+
+    /**
+     * Sets the encryption policy to enable client-side encryption and decryption on the blob this client is connecting
+     * to.
+     * @param encryptionPolicy {@link BlobEncryptionPolicy}
+     * @return the update BlobClientBuilder object
+     */
+    public BlobClientBuilder encyrptionPolicy(BlobEncryptionPolicy encryptionPolicy) {
+        this.encryptionPolicy = encryptionPolicy;
         return this;
     }
 }

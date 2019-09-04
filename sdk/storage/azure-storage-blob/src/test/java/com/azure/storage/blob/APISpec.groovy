@@ -3,14 +3,7 @@
 
 package com.azure.storage.blob
 
-import com.azure.core.http.HttpClient
-import com.azure.core.http.HttpHeaders
-import com.azure.core.http.HttpMethod
-import com.azure.core.http.HttpPipelineCallContext
-import com.azure.core.http.HttpPipelineNextPolicy
-import com.azure.core.http.HttpRequest
-import com.azure.core.http.HttpResponse
-import com.azure.core.http.ProxyOptions
+import com.azure.core.http.*
 import com.azure.core.http.netty.NettyAsyncHttpClientBuilder
 import com.azure.core.http.policy.HttpLogDetailLevel
 import com.azure.core.http.policy.HttpPipelinePolicy
@@ -22,13 +15,8 @@ import com.azure.core.test.utils.TestResourceNamer
 import com.azure.core.util.configuration.ConfigurationManager
 import com.azure.core.util.logging.ClientLogger
 import com.azure.identity.credential.EnvironmentCredentialBuilder
-import com.azure.storage.blob.models.ContainerItem
-import com.azure.storage.blob.models.CopyStatusType
-import com.azure.storage.blob.models.LeaseStateType
-import com.azure.storage.blob.models.ListContainersOptions
-import com.azure.storage.blob.models.Metadata
-import com.azure.storage.blob.models.RetentionPolicy
-import com.azure.storage.blob.models.StorageServiceProperties
+import com.azure.storage.blob.BlobProperties
+import com.azure.storage.blob.models.*
 import com.azure.storage.common.Constants
 import com.azure.storage.common.credentials.SASTokenCredential
 import com.azure.storage.common.credentials.SharedKeyCredential
@@ -432,6 +420,18 @@ class APISpec extends Specification {
 
     ByteBuffer getRandomData(int size) {
         return ByteBuffer.wrap(getRandomByteArray(size))
+    }
+
+    /*
+   We only allow int because anything larger than 2GB (which would require a long) is left to stress/perf.
+    */
+    File getRandomFile(int size) {
+        File file = File.createTempFile(UUID.randomUUID().toString(), ".txt")
+        file.deleteOnExit()
+        FileOutputStream fos = new FileOutputStream(file)
+        fos.write(getRandomData(size).array())
+        fos.close()
+        return file
     }
 
     /**

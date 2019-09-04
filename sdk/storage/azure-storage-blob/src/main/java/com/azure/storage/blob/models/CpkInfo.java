@@ -5,6 +5,7 @@
 package com.azure.storage.blob.models;
 
 import com.azure.core.implementation.annotation.Fluent;
+import com.azure.storage.blob.EncryptionAlgorithmType;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlRootElement;
 

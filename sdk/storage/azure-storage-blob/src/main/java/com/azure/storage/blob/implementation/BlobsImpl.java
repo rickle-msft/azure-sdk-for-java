@@ -50,7 +50,7 @@ import com.azure.storage.blob.models.CpkInfo;
 import com.azure.storage.blob.models.DataLakeStorageErrorException;
 import com.azure.storage.blob.models.DeleteSnapshotsOptionType;
 import com.azure.storage.blob.models.DirectoryHttpHeaders;
-import com.azure.storage.blob.models.EncryptionAlgorithmType;
+import com.azure.storage.blob.EncryptionAlgorithmType;
 import com.azure.storage.blob.models.LeaseAccessConditions;
 import com.azure.storage.blob.models.ModifiedAccessConditions;
 import com.azure.storage.blob.models.PathRenameMode;

@@ -5,6 +5,7 @@ package com.azure.storage.blob;
 
 import com.azure.core.http.policy.UserAgentPolicy;
 import com.azure.storage.common.BaseClientBuilder;
+import com.azure.storage.common.ServiceConfiguration.BlobConfiguration;
 
 abstract class BaseBlobClientBuilder<T extends BaseClientBuilder<T>> extends BaseClientBuilder<T> {
 

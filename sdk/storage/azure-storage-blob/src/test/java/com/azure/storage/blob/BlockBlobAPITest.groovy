@@ -573,6 +573,17 @@ class BlockBlobAPITest extends APISpec {
         Boolean.parseBoolean(response.headers().value("x-ms-request-server-encrypted"))
     }
 
+    def "Upload file test"() {
+        setup:
+        def file = getRandomFile(20*1024*1024)
+
+        when:
+        bc.uploadFromFile(file.toPath().toString())
+
+        then:
+        notThrown(Exception)
+    }
+
     def "Upload min"() {
         when:
         bc.upload(defaultInputStream.get(), defaultDataSize)

@@ -87,15 +87,17 @@ public class BlobAsyncClient {
 
     final AzureBlobStorageImpl azureBlobStorage;
     protected final String snapshot;
+    protected final BlobEncryptionPolicy encryptionPolicy;
 
     /**
      * Package-private constructor for use by {@link BlobClientBuilder}.
      *
      * @param azureBlobStorage the API client for blob storage
      */
-    BlobAsyncClient(AzureBlobStorageImpl azureBlobStorage, String snapshot) {
+    BlobAsyncClient(AzureBlobStorageImpl azureBlobStorage, String snapshot, BlobEncryptionPolicy encryptionPolicy) {
         this.azureBlobStorage = azureBlobStorage;
         this.snapshot = snapshot;
+        this.encryptionPolicy = encryptionPolicy;
     }
 
     /**
@@ -108,7 +110,7 @@ public class BlobAsyncClient {
         return new BlockBlobAsyncClient(new AzureBlobStorageBuilder()
             .url(getBlobUrl().toString())
             .pipeline(azureBlobStorage.getHttpPipeline())
-            .build(), snapshot);
+            .build(), snapshot, encryptionPolicy);
     }
 
     /**
@@ -121,7 +123,7 @@ public class BlobAsyncClient {
         return new AppendBlobAsyncClient(new AzureBlobStorageBuilder()
             .url(getBlobUrl().toString())
             .pipeline(azureBlobStorage.getHttpPipeline())
-            .build(), snapshot);
+            .build(), snapshot, encryptionPolicy);
     }
 
     /**
@@ -134,7 +136,7 @@ public class BlobAsyncClient {
         return new PageBlobAsyncClient(new AzureBlobStorageBuilder()
             .url(getBlobUrl().toString())
             .pipeline(azureBlobStorage.getHttpPipeline())
-            .build(), snapshot);
+            .build(), snapshot, encryptionPolicy);
     }
 
     /**
@@ -147,7 +149,7 @@ public class BlobAsyncClient {
         return new BlobAsyncClient(new AzureBlobStorageBuilder()
             .url(getBlobUrl().toString())
             .pipeline(azureBlobStorage.getHttpPipeline())
-            .build(), snapshot);
+            .build(), snapshot, encryptionPolicy);
     }
 
     /**

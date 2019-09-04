@@ -1,17 +1,21 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
-package com.azure.storage.blob.models;
+package com.azure.storage.blob;
 
 import com.azure.core.util.logging.ClientLogger;
+import com.azure.storage.blob.models.IKey;
+import com.azure.storage.blob.models.IKeyResolver;
+import com.azure.storage.blob.models.Metadata;
+import com.azure.storage.common.Constants;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import reactor.core.Exceptions;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.function.Tuple2;
 
-import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
@@ -35,13 +39,11 @@ import static com.azure.storage.common.Constants.EncryptionConstants.ENCRYPTION_
 
 /**
  * Represents a blob encryption policy that is used to perform envelope encryption/decryption of Azure storage blobs.
- * This class is immutable as it is a property on an EncryptedBlobURL, which needs to be thread safe. Please see the
  * <a href="https://docs.microsoft.com/en-us/azure/storage/common/storage-client-side-encryption-java?toc=%2fazure%2fstorage%2fblobs%2ftoc.json">Azure Docs</a>
  * for more information.
  */
 public final class BlobEncryptionPolicy {
     private final ClientLogger logger = new ClientLogger(BlobEncryptionPolicy.class);
-
 
     /**
      * The {@link IKeyResolver} used to select the correct key for decrypting existing blobs.
@@ -515,6 +517,32 @@ public final class BlobEncryptionPolicy {
                             "does not support the specified encryption algorithm."));
             }
         } catch (NoSuchPaddingException | NoSuchAlgorithmException | InvalidAlgorithmParameterException e) {
+            throw logger.logExceptionAsError(Exceptions.propagate(e));
+        }
+    }
+
+    /**
+     * Encrypt the blob and add the encryption metadata to the customer's metadata.
+     *
+     * @param plainText The data to encrypt
+     * @param metadata The customer's metadata to be updated.
+     *
+     * @return A Mono containing the cipher text
+     */
+    Mono<Flux<ByteBuffer>> prepareToSendEncryptedRequest(Flux<ByteBuffer> plainText,
+        Metadata metadata) {
+        try {
+            return this.encryptBlob(plainText)
+                .flatMap(encryptedBlob -> {
+                    try {
+                        metadata.put(Constants.EncryptionConstants.ENCRYPTION_DATA_KEY,
+                            encryptedBlob.getEncryptionData().toJsonString());
+                        return Mono.just((encryptedBlob.getCiphertextFlux()));
+                    } catch (JsonProcessingException e) {
+                        throw logger.logExceptionAsError(Exceptions.propagate(e));
+                    }
+                });
+        } catch (InvalidKeyException e) {
             throw logger.logExceptionAsError(Exceptions.propagate(e));
         }
     }

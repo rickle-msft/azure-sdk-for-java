@@ -2,7 +2,7 @@
 // Licensed under the MIT License.
 
 
-package com.azure.storage.blob.models;
+package com.azure.storage.blob;
 
 import reactor.core.publisher.Flux;
 import java.nio.ByteBuffer;
