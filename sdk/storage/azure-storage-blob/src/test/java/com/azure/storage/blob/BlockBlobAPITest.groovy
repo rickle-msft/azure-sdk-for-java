@@ -4,27 +4,14 @@
 
 package com.azure.storage.blob
 
-import com.azure.core.http.HttpHeaders
-import com.azure.core.http.HttpMethod
-import com.azure.core.http.HttpPipelineCallContext
-import com.azure.core.http.HttpPipelineNextPolicy
-import com.azure.core.http.HttpRequest
+import com.azure.core.http.*
 import com.azure.core.http.policy.HttpLogDetailLevel
 import com.azure.core.http.policy.HttpPipelinePolicy
 import com.azure.core.http.rest.Response
-import com.azure.storage.blob.models.BlobAccessConditions
-import com.azure.storage.blob.models.BlobHTTPHeaders
-import com.azure.storage.blob.models.BlobRange
-import com.azure.storage.blob.models.BlockItem
-import com.azure.storage.blob.models.LeaseAccessConditions
-import com.azure.storage.blob.models.Metadata
-import com.azure.storage.blob.models.ModifiedAccessConditions
-import com.azure.storage.blob.models.PublicAccessType
-import com.azure.storage.blob.models.SourceModifiedAccessConditions
-import com.azure.storage.blob.models.StorageErrorCode
-import com.azure.storage.blob.models.StorageException
+import com.azure.storage.blob.BlobProperties
+import com.azure.storage.blob.models.*
+import com.azure.storage.common.Constants
 import com.azure.storage.common.policy.RequestRetryOptions
-import com.microsoft.azure.keyvault.cryptography.SymmetricKey
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import spock.lang.Unroll
@@ -38,6 +25,8 @@ import java.security.MessageDigest
 class BlockBlobAPITest extends APISpec {
     BlockBlobClient bc
     BlockBlobAsyncClient bac
+    BlockBlobClient bec // encrypted client
+    BlockBlobAsyncClient beac // encrypted async client
 
     String keyId
     IKey symmetricKey
@@ -56,6 +45,8 @@ class BlockBlobAPITest extends APISpec {
         symmetricKey = new SymmetricKey(keyId, secretKey.getEncoded())
 
         blobEncryptionPolicy = new BlobEncryptionPolicy(symmetricKey, null, false)
+        bec = cc.getBlockBlobClient(generateBlobName(), null, blobEncryptionPolicy)
+        beac = ccAsync.getBlockBlobAsyncClient(generateBlobName(), null, blobEncryptionPolicy)
     }
 
     def "Stage block"() {
@@ -1027,4 +1018,57 @@ class BlockBlobAPITest extends APISpec {
         def e = thrown(StorageException)
         e.statusCode() == 500
     }
+
+    def "Encryption not a no-op"() {
+        setup:
+        ByteBuffer byteBuffer = getRandomData(Constants.KB)
+        def is = new ByteArrayInputStream(byteBuffer.array())
+        def os = new ByteArrayOutputStream()
+
+        when:
+        bec.upload(is, Constants.KB)
+        cc.getBlobClient(URLParser.parse(bec.getBlobUrl()).blobName()).download(os)
+
+        ByteBuffer outputByteBuffer = ByteBuffer.wrap(os.toByteArray())
+
+        then:
+        outputByteBuffer.array() != byteBuffer.array()
+    }
+
+    @Unroll
+    def "Encryption"() {
+        when:
+        ByteBuffer byteBuffer = getRandomData(size)
+        ByteBuffer[] byteBufferArray = new ByteBuffer[byteBufferCount]
+
+        /*
+        Sending a sequence of buffers allows us to test encryption behavior in different cases when the buffers do
+        or do not align on encryption boundaries.
+         */
+        for (def i = 0; i < byteBufferCount; i++) {
+            byteBufferArray[i] = ByteBuffer.wrap(Arrays.copyOfRange(
+                byteBuffer.array(), i * (int) (size / byteBufferCount), (int) ((i + 1) * (size / byteBufferCount))))
+        }
+        Flux<ByteBuffer> flux = Flux.fromArray(byteBufferArray)
+
+        beac.upload(flux, size).block()
+        ByteBuffer outputByteBuffer = collectBytesInBuffer(beac.download().block()).block()
+
+        then:
+        byteBuffer == outputByteBuffer
+
+        where:
+        size              | byteBufferCount
+        10                | 1                 // 0 One buffer smaller than an encryption block.
+        10                | 2                 // 1 A buffer that spans an encryption block.
+        16                | 1                 // 2 A buffer exactly the same size as an encryption block.
+        16                | 2                 // 3 Two buffers the same size as an encryption block.
+        20                | 1                 // 4 One buffer larger than an encryption block.
+        20                | 2                 // 5 Two buffers larger than an encryption block.
+        100               | 1                 // 6 One buffer containing multiple encryption blocks
+        5 * Constants.KB  | Constants.KB      // 7 Large number of small buffers.
+        10 * Constants.MB | 2                 // 8 Small number of large buffers.
+    }
+
+    // TODO: upload and buffered upload tests
 }

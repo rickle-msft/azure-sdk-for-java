@@ -163,19 +163,22 @@ public final class BlockBlobAsyncClient extends BlobAsyncClient {
             ? new BlobAccessConditions() : accessConditions;
 
         Mono<Flux<ByteBuffer>> dataFinal;
+        long lengthFinal;
         // TODO: Ensure this works with retries.
         // TODO: Json resource files to test cross-SDK
         if (this.encryptionPolicy != null) {
             dataFinal = encryptionPolicy.prepareToSendEncryptedRequest(data, metadataFinal);
+            // Readjust the length to account for padding.
+            lengthFinal =  length + (16 - length % 16);
         } else {
             dataFinal = Mono.just(data);
+            lengthFinal = length;
         }
 
         return dataFinal.flatMap(df ->
-            postProcessResponse(this.azureBlobStorage.blockBlobs().uploadWithRestResponseAsync(null,
-                null, df, length, null, metadataFinal, null, null, headers,
-                accessConditionsFinal.leaseAccessConditions(), null,
-                accessConditionsFinal.modifiedAccessConditions(), context))
+            postProcessResponse(this.azureBlobStorage.blockBlobs().uploadWithRestResponseAsync(null, null, df,
+                lengthFinal, null, metadataFinal, null, null, headers, accessConditionsFinal.leaseAccessConditions(),
+                null, accessConditionsFinal.modifiedAccessConditions(), context))
                 .map(rb -> new SimpleResponse<>(rb, new BlockBlobItem(rb.deserializedHeaders()))));
     }
 

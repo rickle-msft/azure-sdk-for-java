@@ -112,6 +112,6 @@ final class EncryptedBlobRange {
      *        decrypt the blob.
      */
     BlobRange toBlobRange() {
-        return new BlobRange(this.adjustedDownloadCount, this.originalRange.offset() - this.offsetAdjustment);
+        return new BlobRange(this.originalRange.offset() - this.offsetAdjustment, this.adjustedDownloadCount);
     }
 }

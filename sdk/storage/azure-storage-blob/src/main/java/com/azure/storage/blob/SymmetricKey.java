@@ -8,9 +8,17 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.util.UUID;
+
+import com.microsoft.azure.keyvault.cryptography.Algorithm;
+import com.microsoft.azure.keyvault.cryptography.AlgorithmResolver;
+import com.microsoft.azure.keyvault.cryptography.ByteExtensions;
+import com.microsoft.azure.keyvault.cryptography.ICryptoTransform;
+import com.microsoft.azure.keyvault.cryptography.KeyWrapAlgorithm;
+import com.microsoft.azure.keyvault.cryptography.algorithms.AesKw128;
+import com.microsoft.azure.keyvault.cryptography.algorithms.AesKw192;
+import com.microsoft.azure.keyvault.cryptography.algorithms.AesKw256;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;
-import reactor.util.function.Tuple3;
 
 /**
  * A simple symmetric key implementation
@@ -123,31 +131,6 @@ public class SymmetricKey implements IKey {
         this.provider = provider;
     }
 
-    @Override
-    public String getDefaultEncryptionAlgorithm() {
-
-        switch (key.length) {
-            case KeySize128:
-                return Aes128Cbc.ALGORITHM_NAME;
-
-            case KeySize192:
-                return Aes192Cbc.ALGORITHM_NAME;
-
-            case KeySize256:
-                return Aes128CbcHmacSha256.ALGORITHM_NAME;
-
-            case KeySize384:
-                return Aes192CbcHmacSha384.ALGORITHM_NAME;
-
-            case KeySize512:
-                return Aes256CbcHmacSha512.ALGORITHM_NAME;
-
-            default:
-                return null;
-        }
-    }
-
-    @Override
     public String getDefaultKeyWrapAlgorithm() {
 
         switch (key.length) {
@@ -174,26 +157,23 @@ public class SymmetricKey implements IKey {
     }
 
     @Override
-    public String getDefaultSignatureAlgorithm() {
-
-        return null;
-    }
-
-    @Override
     public String getKid() {
 
         return kid;
     }
 
     @Override
-    public Mono<Tuple2<byte[], String>> wrapKeyAsync(final byte[] key, final String algorithm) throws NoSuchAlgorithmException {
+    public Mono<Tuple2<byte[], String>> wrapKeyAsync(final byte[] key, String algorithm) throws NoSuchAlgorithmException {
 
         if (key == null || key.length == 0) {
             throw new IllegalArgumentException("key");
         }
 
+        if (algorithm == null || algorithm.isEmpty()) {
+            algorithm = getDefaultKeyWrapAlgorithm();
+        }
         // Interpret the algorithm
-        String    algorithmName = (Strings.isNullOrWhiteSpace(algorithm)) ? getDefaultKeyWrapAlgorithm() : algorithm;
+        String    algorithmName = algorithm;
         Algorithm baseAlgorithm = AlgorithmResolver.Default.get(algorithmName);
 
         if (baseAlgorithm == null || !(baseAlgorithm instanceof KeyWrapAlgorithm)) {
@@ -224,9 +204,6 @@ public class SymmetricKey implements IKey {
     @Override
     public Mono<byte[]> unwrapKeyAsync(final byte[] encryptedKey, final String algorithm) throws NoSuchAlgorithmException {
 
-        if (Strings.isNullOrWhiteSpace(algorithm)) {
-            throw new IllegalArgumentException("algorithm");
-        }
 
         if (encryptedKey == null || encryptedKey.length == 0) {
             throw new IllegalArgumentException("wrappedKey");

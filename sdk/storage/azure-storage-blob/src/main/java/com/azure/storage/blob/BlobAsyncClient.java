@@ -425,12 +425,19 @@ public class BlobAsyncClient {
 
         return download(this.encryptionPolicy == null ? range : encryptedRange.toBlobRange(), accessConditions,
             rangeGetContentMD5, context)
-            .map(response -> new SimpleResponse<>(
-                response.rawResponse(),
-                this.encryptionPolicy == null
-                    ? response.body(options).switchIfEmpty(Flux.just(ByteBuffer.wrap(new byte[0])))
-                    : this.encryptionPolicy.decryptBlob(response.headers().metadata(), response.body(options),
-                    encryptedRange, true)));
+            .map(response -> {
+                /*
+                We will need to know the total size of the data to know when to finalize the decryption. If it was
+                not set originally with the intent of downloading the whole blob, update it here.
+                 */
+                encryptedRange.withAdjustedDownloadCount(response.headers().contentLength());
+                return new SimpleResponse<>(
+                    response.rawResponse(),
+                    this.encryptionPolicy == null
+                        ? response.body(options).switchIfEmpty(Flux.just(ByteBuffer.wrap(new byte[0])))
+                        : this.encryptionPolicy.decryptBlob(response.headers().metadata(), response.body(options),
+                        encryptedRange, true));
+            });
     }
 
     /**

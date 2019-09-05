@@ -185,7 +185,6 @@ public final class BlobEncryptionPolicy {
             }
         }
 
-
         // The number of bytes we have put into the Cipher so far.
         AtomicLong totalInputBytes = new AtomicLong(0);
         // The number of bytes that have been sent to the downstream so far.
@@ -534,7 +533,7 @@ public final class BlobEncryptionPolicy {
                     try {
                         metadata.put(Constants.EncryptionConstants.ENCRYPTION_DATA_KEY,
                             encryptedBlob.getEncryptionData().toJsonString());
-                        return Mono.just((encryptedBlob.getCiphertextFlux()));
+                        return Mono.just(encryptedBlob.getCiphertextFlux());
                     } catch (JsonProcessingException e) {
                         throw logger.logExceptionAsError(Exceptions.propagate(e));
                     }
