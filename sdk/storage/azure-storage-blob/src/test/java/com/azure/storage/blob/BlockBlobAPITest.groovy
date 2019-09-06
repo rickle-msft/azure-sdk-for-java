@@ -8,7 +8,6 @@ import com.azure.core.http.*
 import com.azure.core.http.policy.HttpLogDetailLevel
 import com.azure.core.http.policy.HttpPipelinePolicy
 import com.azure.core.http.rest.Response
-import com.azure.storage.blob.BlobProperties
 import com.azure.storage.blob.models.*
 import com.azure.storage.common.Constants
 import com.azure.storage.common.policy.RequestRetryOptions
@@ -1105,6 +1104,7 @@ class BlockBlobAPITest extends APISpec {
         // HTTP default content type is application/octet-stream
 
         when:
+        // Buffered upload
         beac.uploadWithResponse(defaultFlux, defaultDataSize, 2, headers, null, null).block()
         response = beac.getPropertiesWithResponse(null).block()
 
@@ -1138,6 +1138,14 @@ class BlockBlobAPITest extends APISpec {
         then:
         properties.metadata() == metadata
 
+        when:
+        // Buffered upload
+        beac.uploadWithResponse(defaultFlux, defaultDataSize, 2, null, metadata, null).block()
+        properties = beac.getProperties().block()
+
+        then:
+        properties.metadata() == metadata
+
         where:
         key1  | value1 | key2   | value2
         null  | null   | null   | null
@@ -1146,17 +1154,24 @@ class BlockBlobAPITest extends APISpec {
 
     @Unroll
     def "Encryption AC"() {
-        setup:
+        when:
         beac.upload(defaultFlux, defaultDataSize).block()
-        match = setupBlobMatchCondition(beac, match)
+        def etag = setupBlobMatchCondition(beac, match)
         leaseID = setupBlobLeaseCondition(beac, leaseID)
         BlobAccessConditions bac = new BlobAccessConditions().modifiedAccessConditions(
             new ModifiedAccessConditions().ifModifiedSince(modified).ifUnmodifiedSince(unmodified)
-                .ifMatch(match).ifNoneMatch(noneMatch))
+                .ifMatch(etag).ifNoneMatch(noneMatch))
             .leaseAccessConditions(new LeaseAccessConditions().leaseId(leaseID))
 
-        expect:
+        then:
         beac.uploadWithResponse(defaultFlux, defaultDataSize, null, null, bac).block().statusCode() == 201
+
+        when:
+        etag = setupBlobMatchCondition(beac, match)
+        bac.modifiedAccessConditions().ifMatch(etag)
+
+        then:
+        beac.uploadWithResponse(defaultFlux, defaultDataSize, 2, null, null, bac).block().statusCode() == 201
 
         where:
         modified | unmodified | match        | noneMatch   | leaseID
@@ -1181,11 +1196,13 @@ class BlockBlobAPITest extends APISpec {
 
         when:
         beac.uploadWithResponse(defaultFlux, defaultDataSize, null, null, bac).block()
+        beac.uploadWithResponse(defaultFlux, defaultDataSize, 2, null, null, bac).block()
 
         then:
         def e = thrown(StorageException)
         e.errorCode() == StorageErrorCode.CONDITION_NOT_MET ||
             e.errorCode() == StorageErrorCode.LEASE_ID_MISMATCH_WITH_BLOB_OPERATION
+
         where:
         modified | unmodified | match       | noneMatch    | leaseID
         newDate  | null       | null        | null         | null
@@ -1211,7 +1228,7 @@ class BlockBlobAPITest extends APISpec {
         when:
         ByteBuffer byteBuffer = getRandomData(size)
 
-        def flux = Flux.just(byteBuffer)
+        def flux = Flux.just(byteBuffer).map{buf -> buf.duplicate()}
 
         beac.upload(flux, size).block()
 
@@ -1231,11 +1248,21 @@ class BlockBlobAPITest extends APISpec {
         } else {
             limit = size
         }
-        byteBuffer.position(offset).limit(limit) // reset the position after the read in upload.
+        // reset the position after the read in upload.
+        def expectedDownload = byteBuffer.duplicate().position(offset).limit(limit)
 
         then:
         downloadResponse.statusCode() == status
-        byteBuffer == outputByteBuffer
+        expectedDownload == outputByteBuffer
+
+        when:
+        beac.upload(flux, size, 2).block()
+        outputByteBuffer = collectBytesInBuffer(
+            beac.downloadWithResponse(new BlobRange(offset.longValue(), count), null, null, false).block().value())
+            .block()
+
+        then:
+        expectedDownload == outputByteBuffer
 
         where:
         offset | count | size | status // note
@@ -1270,17 +1297,22 @@ class BlockBlobAPITest extends APISpec {
     def "Large Blob Tests"() {
         when:
         ByteBuffer byteBuffer = getRandomData(size)
+        Flux<ByteBuffer> flux = Flux.just(byteBuffer).map{buf -> buf.duplicate()}
 
-        Flux<ByteBuffer> flux = Flux.just(byteBuffer)
-
-       beac.upload(flux, size).block()
-
+        beac.upload(flux, size).block()
         def downloadResponse = beac.downloadWithResponse(new BlobRange(offset.longValue(),count), null, null, false)
             .block()
-
         def outputByteBuffer = collectBytesInBuffer(downloadResponse.value()).block()
-
         byte[] expectedByteArray = Arrays.copyOfRange(byteBuffer.array(), (int) offset, (int) (calcUpperBound(offset, count, size)))
+
+        then:
+        outputByteBuffer.array() == expectedByteArray
+
+        when:
+        beac.upload(flux, size, 2).block()
+        downloadResponse = beac.downloadWithResponse(new BlobRange(offset.longValue(),count), null, null, false)
+            .block()
+        outputByteBuffer = collectBytesInBuffer(downloadResponse.value()).block()
 
         then:
         outputByteBuffer.array() == expectedByteArray
