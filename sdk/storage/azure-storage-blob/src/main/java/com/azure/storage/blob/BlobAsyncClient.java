@@ -433,7 +433,7 @@ public class BlobAsyncClient {
                  */
                 encryptedRange.withAdjustedDownloadCount(response.headers().contentLength());
                 boolean padding = encryptedRange.toBlobRange().offset() + encryptedRange.toBlobRange().count() >
-                    ( blobSize(response.headers()) - 16);
+                    (blobSize(response.headers()) - 16);
                 return new SimpleResponse<>(
                     response.rawResponse(),
                     this.encryptionPolicy == null

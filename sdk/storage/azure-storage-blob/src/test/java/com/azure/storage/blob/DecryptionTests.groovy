@@ -67,7 +67,7 @@ class DecryptionTests extends APISpec {
         decryptedData == desiredOutput
 
         where:
-        testCase                                 | _
+        testCase                      | _
         EncryptedFlux.CASE_ZERO       | _
         EncryptedFlux.CASE_ONE        | _
         EncryptedFlux.CASE_TWO        | _

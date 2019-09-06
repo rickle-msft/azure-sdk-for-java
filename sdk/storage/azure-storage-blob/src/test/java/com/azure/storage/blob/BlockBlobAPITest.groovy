@@ -1369,6 +1369,38 @@ class BlockBlobAPITest extends APISpec {
         20 * KB + 8 - 5 | 5                 | 20 * KB + 8   // 47
     }
 
+    def compareDataToFile(Flux<ByteBuffer> data, File file) {
+        FileInputStream fis = new FileInputStream(file)
+
+        for (ByteBuffer received : data.toIterable()) {
+            byte[] readBuffer = new byte[received.remaining()]
+            fis.read(readBuffer)
+            for (int i = 0; i < received.remaining(); i++) {
+                if (readBuffer[i] != received.get(i)) {
+                    return false
+                }
+            }
+        }
+
+        fis.close()
+        return true
+    }
+
+    def "Encrypted upload file"() {
+        setup:
+        def file = getRandomFile(KB)
+
+        when:
+        beac.uploadFromFile(file.toPath().toString())
+
+        then:
+        compareDataToFile(beac.download().block(), file)
+    }
+
+    def "Encrypted download file"() {
+
+    }
+
     @Unroll
     def "Block block cross platform decryption tests"() {
         when:
@@ -1387,7 +1419,6 @@ class BlockBlobAPITest extends APISpec {
 
         bac.uploadWithResponse(Flux.just(ByteBuffer.wrap(encryptedBytes)), encryptedBytes.length, null, metadata, null).block()
 
-
         ByteBuffer outputByteBuffer = collectBytesInBuffer(beac.download().block()).block()
 
         then:
@@ -1396,7 +1427,6 @@ class BlockBlobAPITest extends APISpec {
         where:
         index << [0, 1, 2, 3, 4]
     }
-
 
     def calcUpperBound(Long offset, Long count, Long size) {
         if (count == null || offset + count > size) {
