@@ -16,6 +16,7 @@ import com.azure.storage.blob.implementation.AzureBlobStorageImpl;
 import com.azure.storage.blob.models.AccessTier;
 import com.azure.storage.blob.models.AccessTierRequired;
 import com.azure.storage.blob.models.BlobAccessConditions;
+import com.azure.storage.blob.models.BlobDownloadHeaders;
 import com.azure.storage.blob.models.BlobHTTPHeaders;
 import com.azure.storage.blob.models.BlobRange;
 import com.azure.storage.blob.models.BlobStartCopyFromURLHeaders;
@@ -431,13 +432,27 @@ public class BlobAsyncClient {
                 not set originally with the intent of downloading the whole blob, update it here.
                  */
                 encryptedRange.withAdjustedDownloadCount(response.headers().contentLength());
+                boolean padding = encryptedRange.toBlobRange().offset() + encryptedRange.toBlobRange().count() >
+                    ( blobSize(response.headers()) - 16);
                 return new SimpleResponse<>(
                     response.rawResponse(),
                     this.encryptionPolicy == null
                         ? response.body(options).switchIfEmpty(Flux.just(ByteBuffer.wrap(new byte[0])))
                         : this.encryptionPolicy.decryptBlob(response.headers().metadata(), response.body(options),
-                        encryptedRange, true));
+                        encryptedRange, padding));
             });
+    }
+
+    private Long blobSize(BlobDownloadHeaders headers) {
+        // e.g. 0-5/1024
+        if (headers.contentRange() != null) {
+            String range = headers.contentRange();
+            return Long.valueOf(range.split("/")[1]);
+        }
+        else {
+            // If there was no content range header, we requested a full blob, so the blobSize = contentLength
+            return headers.contentLength();
+        }
     }
 
     /**

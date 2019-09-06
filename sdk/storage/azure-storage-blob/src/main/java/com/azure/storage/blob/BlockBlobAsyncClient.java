@@ -341,7 +341,7 @@ public final class BlockBlobAsyncClient extends BlobAsyncClient {
             }) // TODO: parallelism?
             .collect(Collectors.toList())
             .flatMap(ids ->
-                this.commitBlockListWithResponse(ids, headers, metadata, accessConditions));
+                this.commitBlockListWithResponse(ids, headers, metadataFinal, accessConditions));
 
     }
 

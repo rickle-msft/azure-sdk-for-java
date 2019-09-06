@@ -113,6 +113,13 @@ class APISpec extends Specification {
     private TestResourceNamer resourceNamer
     protected String testName
 
+    @Shared
+    protected KB = 1024
+    @Shared
+    protected MB = 1024 * KB
+    @Shared
+    protected GB = 1024 * MB
+
     def setupSpec() {
         testMode = setupTestMode()
         primaryCredential = getCredential(PRIMARY_STORAGE)

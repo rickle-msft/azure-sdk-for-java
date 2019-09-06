@@ -12,6 +12,8 @@ import com.azure.storage.blob.BlobProperties
 import com.azure.storage.blob.models.*
 import com.azure.storage.common.Constants
 import com.azure.storage.common.policy.RequestRetryOptions
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.type.CollectionType
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import spock.lang.Unroll
@@ -20,6 +22,9 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
 import java.security.MessageDigest
 
 class BlockBlobAPITest extends APISpec {
@@ -1038,37 +1043,344 @@ class BlockBlobAPITest extends APISpec {
     @Unroll
     def "Encryption"() {
         when:
-        ByteBuffer byteBuffer = getRandomData(size)
-        ByteBuffer[] byteBufferArray = new ByteBuffer[byteBufferCount]
+        def byteBufferList = [];
 
         /*
         Sending a sequence of buffers allows us to test encryption behavior in different cases when the buffers do
         or do not align on encryption boundaries.
          */
         for (def i = 0; i < byteBufferCount; i++) {
-            byteBufferArray[i] = ByteBuffer.wrap(Arrays.copyOfRange(
-                byteBuffer.array(), i * (int) (size / byteBufferCount), (int) ((i + 1) * (size / byteBufferCount))))
+            byteBufferList.add(getRandomData(size))
         }
-        Flux<ByteBuffer> flux = Flux.fromArray(byteBufferArray)
+        def flux = Flux.fromIterable(byteBufferList)
 
-        beac.upload(flux, size).block()
+        // Test basic upload.
+        beac.upload(flux, size * byteBufferCount).block()
         ByteBuffer outputByteBuffer = collectBytesInBuffer(beac.download().block()).block()
 
         then:
-        byteBuffer == outputByteBuffer
+        compareListToBuffer(byteBufferList, outputByteBuffer)
+
+        when:
+        // Test buffered upload.
+        beac.upload(flux, size, 2).block()
+        outputByteBuffer = collectBytesInBuffer(beac.download().block()).block()
+
+        then:
+        compareListToBuffer(byteBufferList, outputByteBuffer)
 
         where:
         size              | byteBufferCount
-        10                | 1                 // 0 One buffer smaller than an encryption block.
-        10                | 2                 // 1 A buffer that spans an encryption block.
-        16                | 1                 // 2 A buffer exactly the same size as an encryption block.
-        16                | 2                 // 3 Two buffers the same size as an encryption block.
-        20                | 1                 // 4 One buffer larger than an encryption block.
-        20                | 2                 // 5 Two buffers larger than an encryption block.
-        100               | 1                 // 6 One buffer containing multiple encryption blocks
-        5 * Constants.KB  | Constants.KB      // 7 Large number of small buffers.
-        10 * Constants.MB | 2                 // 8 Small number of large buffers.
+        5                 | 2                 // 0 Two buffers smaller than an encryption block.
+        8                 | 2                 // 1 Two buffers that equal an encryption block.
+        10                | 1                 // 2 One buffer smaller than an encryption block.
+        10                | 2                 // 3 A buffer that spans an encryption block.
+        16                | 1                 // 4 A buffer exactly the same size as an encryption block.
+        16                | 2                 // 5 Two buffers the same size as an encryption block.
+        20                | 1                 // 6 One buffer larger than an encryption block.
+        20                | 2                 // 7 Two buffers larger than an encryption block.
+        100               | 1                 // 8 One buffer containing multiple encryption blocks
+        5 * Constants.KB  | Constants.KB      // 9 Large number of small buffers.
+        10 * Constants.MB | 2                 // 10 Small number of large buffers.
     }
 
-    // TODO: upload and buffered upload tests
+    @Unroll
+    def "Encryption headers"() {
+        setup:
+        BlobHTTPHeaders headers = new BlobHTTPHeaders().blobCacheControl(cacheControl)
+            .blobContentDisposition(contentDisposition)
+            .blobContentEncoding(contentEncoding)
+            .blobContentLanguage(contentLanguage)
+            .blobContentMD5(contentMD5)
+            .blobContentType(contentType)
+
+        when:
+        beac.uploadWithResponse(defaultFlux, defaultDataSize, headers, null, null).block()
+        def response = beac.getPropertiesWithResponse(null).block()
+
+        then:
+        response.statusCode() == 200
+        validateBlobProperties(response, cacheControl, contentDisposition, contentEncoding, contentLanguage,
+            contentMD5, contentType == null ? "application/octet-stream" : contentType)
+        // HTTP default content type is application/octet-stream
+
+        when:
+        beac.uploadWithResponse(defaultFlux, defaultDataSize, 2, headers, null, null).block()
+        response = beac.getPropertiesWithResponse(null).block()
+
+        then:
+        response.statusCode() == 200
+        validateBlobProperties(response, cacheControl, contentDisposition, contentEncoding, contentLanguage,
+            contentMD5, contentType == null ? "application/octet-stream" : contentType)
+        // HTTP default content type is application/octet-stream
+
+        where:
+        cacheControl | contentDisposition | contentEncoding | contentLanguage | contentMD5                                                   | contentType
+        null         | null               | null            | null            | null                                                         | null
+        "control"    | "disposition"      | "encoding"      | "language"      | MessageDigest.getInstance("MD5").digest(defaultData.array()) | "type"
+    }
+
+    @Unroll
+    def "Encryption metadata"() {
+        setup:
+        Metadata metadata = new Metadata()
+        if (key1 != null) {
+            metadata.put(key1, value1)
+        }
+        if (key2 != null) {
+            metadata.put(key2, value2)
+        }
+
+        when:
+        beac.uploadWithResponse(defaultFlux, defaultDataSize, null, metadata, null).block()
+        def properties = beac.getProperties().block()
+
+        then:
+        properties.metadata() == metadata
+
+        where:
+        key1  | value1 | key2   | value2
+        null  | null   | null   | null
+        "foo" | "bar"  | "fizz" | "buzz"
+    }
+
+    @Unroll
+    def "Encryption AC"() {
+        setup:
+        beac.upload(defaultFlux, defaultDataSize).block()
+        match = setupBlobMatchCondition(beac, match)
+        leaseID = setupBlobLeaseCondition(beac, leaseID)
+        BlobAccessConditions bac = new BlobAccessConditions().modifiedAccessConditions(
+            new ModifiedAccessConditions().ifModifiedSince(modified).ifUnmodifiedSince(unmodified)
+                .ifMatch(match).ifNoneMatch(noneMatch))
+            .leaseAccessConditions(new LeaseAccessConditions().leaseId(leaseID))
+
+        expect:
+        beac.uploadWithResponse(defaultFlux, defaultDataSize, null, null, bac).block().statusCode() == 201
+
+        where:
+        modified | unmodified | match        | noneMatch   | leaseID
+        null     | null       | null         | null        | null
+        oldDate  | null       | null         | null        | null
+        null     | newDate    | null         | null        | null
+        null     | null       | receivedEtag | null        | null
+        null     | null       | null         | garbageEtag | null
+        null     | null       | null         | null        | receivedLeaseID
+    }
+
+    @Unroll
+    def "Encryption AC fail"() {
+        setup:
+        beac.upload(defaultFlux, defaultDataSize).block()
+        noneMatch = setupBlobMatchCondition(beac, noneMatch)
+        setupBlobLeaseCondition(beac, leaseID)
+        BlobAccessConditions bac = new BlobAccessConditions().modifiedAccessConditions(
+            new ModifiedAccessConditions().ifModifiedSince(modified).ifUnmodifiedSince(unmodified)
+                .ifMatch(match).ifNoneMatch(noneMatch))
+            .leaseAccessConditions(new LeaseAccessConditions().leaseId(leaseID))
+
+        when:
+        beac.uploadWithResponse(defaultFlux, defaultDataSize, null, null, bac).block()
+
+        then:
+        def e = thrown(StorageException)
+        e.errorCode() == StorageErrorCode.CONDITION_NOT_MET ||
+            e.errorCode() == StorageErrorCode.LEASE_ID_MISMATCH_WITH_BLOB_OPERATION
+        where:
+        modified | unmodified | match       | noneMatch    | leaseID
+        newDate  | null       | null        | null         | null
+        null     | oldDate    | null        | null         | null
+        null     | null       | garbageEtag | null         | null
+        null     | null       | null        | receivedEtag | null
+        null     | null       | null        | null         | garbageLeaseID
+    }
+
+    // Progress tests. Tests with parallel upload/download. Stream retries.
+
+    // Options: Pass a policy and no key on encryption--throw; no encryption policy in construction-> throw
+    // Construct a policy and require encryption=true and no key or resolver -> throw
+
+    // TODO: Document which tests are testing which cases. Ensure that some don't align along blocks. Maybe have a mock flowable that returns some really smally byteBuffers.
+    // Request one byte. Test key resolver. Lots more. Require encryption tests (and downloading blobs that aren't encryption, esp. ones that are smaller than what the expanded range would try).
+    // Samples. API refs. Reliable download.
+    // Test EncryptedBlobRange
+    // One blob sample is failing in the onErrorResumeNext case because it gets weird with the generics and downloadResponse
+
+    @Unroll
+    def "Small blob tests"(int offset, Integer count, int size, int status) {
+        when:
+        ByteBuffer byteBuffer = getRandomData(size)
+
+        def flux = Flux.just(byteBuffer)
+
+        beac.upload(flux, size).block()
+
+        def downloadResponse = beac.downloadWithResponse(
+            new BlobRange(offset.longValue(), count), null, null, false).block()
+
+        ByteBuffer outputByteBuffer = collectBytesInBuffer(downloadResponse.value()).block()
+
+        and:
+        def limit
+        if (count != null) {
+            if (count < byteBuffer.capacity()) {
+                limit = offset + count
+            } else {
+                limit = byteBuffer.capacity()
+            }
+        } else {
+            limit = size
+        }
+        byteBuffer.position(offset).limit(limit) // reset the position after the read in upload.
+
+        then:
+        downloadResponse.statusCode() == status
+        byteBuffer == outputByteBuffer
+
+        where:
+        offset | count | size | status // note
+        0      | null  | 10   | 200 // 0
+        3      | null  | 10   | 200 // 1
+        0      | 10    | 10   | 206 // 2
+        0      | 16    | 10   | 206 // 3
+        3      | 16    | 10   | 206 // 4
+        0      | 7     | 10   | 206 // 5
+        3      | 7     | 10   | 206 // 6
+        3      | 3     | 10   | 206 // 7
+        0      | null  | 16   | 200 // 8
+        5      | null  | 16   | 200 // 9
+        0      | 16    | 16   | 206 // 10
+        0      | 20    | 16   | 206 // 11
+        5      | 20    | 16   | 206 // 12
+        5      | 11    | 16   | 206 // 13
+        5      | 7     | 16   | 206 // 14
+        0      | null  | 24   | 200 // 15
+        5      | null  | 24   | 200 // 16
+        0      | 24    | 24   | 206 // 17
+        5      | 24    | 24   | 206 // 18
+        0      | 30    | 24   | 206 // 19
+        5      | 19    | 24   | 206 // 20
+        5      | 10    | 24   | 206 // 21
+    }
+
+    // Keep the small and large blob tests but combine them into Range tests. Looks like some pattern of:
+    // Small, full blob, no offst; small, full blob, offset; small full blob count; ... blob size of block... blob bigger than block... etc.
+
+    @Unroll
+    def "Large Blob Tests"() {
+        when:
+        ByteBuffer byteBuffer = getRandomData(size)
+
+        Flux<ByteBuffer> flux = Flux.just(byteBuffer)
+
+       beac.upload(flux, size).block()
+
+        def downloadResponse = beac.downloadWithResponse(new BlobRange(offset.longValue(),count), null, null, false)
+            .block()
+
+        def outputByteBuffer = collectBytesInBuffer(downloadResponse.value()).block()
+
+        byte[] expectedByteArray = Arrays.copyOfRange(byteBuffer.array(), (int) offset, (int) (calcUpperBound(offset, count, size)))
+
+        then:
+        outputByteBuffer.array() == expectedByteArray
+
+        where:
+        offset          | count             | size          // note
+        0L              | null              | 20 * KB       // 0
+        5L              | null              | 20 * KB       // 1
+        16L             | null              | 20 * KB       // 2
+        24L             | null              | 20 * KB       // 3
+        500             | null              | 20 * KB       // 4
+        5000            | null              | 20 * KB       // 5
+        0L              | 5L                | 20 * KB       // 6
+        0L              | 16L               | 20 * KB       // 7
+        0L              | 24L               | 20 * KB       // 8
+        0L              | 500L              | 20 * KB       // 9
+        0L              | 5000L             | 20 * KB       // 10
+        0L              | 25 * KB           | 20 * KB       // 11
+        0L              | 20 * KB           | 20 * KB       // 12
+        5L              | 25 * KB           | 20 * KB       // 13
+        5L              | 20 * KB - 5       | 20 * KB       // 14
+        5L              | 20 * KB - 10      | 20 * KB       // 15
+        5L              | 20 * KB - 20      | 20 * KB       // 16
+        16L             | 20 * KB - 16      | 20 * KB       // 17
+        16L             | 20 * KB           | 20 * KB       // 18
+        16L             | 20 * KB - 20      | 20 * KB       // 19
+        16L             | 20 * KB - 32      | 20 * KB       // 20
+        500L            | 500L              | 20 * KB       // 21
+        500L            | 20 * KB - 500     | 20 * KB       // 22
+        20 * KB - 5     | 5                 | 20 * KB       // 23
+        0L              | null              | 20 * KB + 8   // 24
+        5L              | null              | 20 * KB + 8   // 25
+        16L             | null              | 20 * KB + 8   // 26
+        24L             | null              | 20 * KB + 8   // 27
+        500             | null              | 20 * KB + 8   // 28
+        5000            | null              | 20 * KB + 8   // 29
+        0L              | 5L                | 20 * KB + 8   // 30
+        0L              | 16L               | 20 * KB + 8   // 31
+        0L              | 24L               | 20 * KB + 8   // 32
+        0L              | 500L              | 20 * KB + 8   // 33
+        0L              | 5000L             | 20 * KB + 8   // 34
+        0L              | 20 * KB + 8       | 20 * KB + 8   // 35
+        0L              | 20 * KB + 8       | 20 * KB + 8   // 36
+        5L              | 20 * KB + 8 - 5   | 20 * KB + 8   // 37
+        5L              | 20 * KB + 8 - 5   | 20 * KB + 8   // 38
+        5L              | 20 * KB + 8 - 10  | 20 * KB + 8   // 39
+        5L              | 20 * KB + 8 - 20  | 20 * KB + 8   // 40
+        16L             | 20 * KB + 8 - 16  | 20 * KB + 8   // 41
+        16L             | 20 * KB + 8       | 20 * KB + 8   // 42
+        16L             | 20 * KB + 8 - 20  | 20 * KB + 8   // 43
+        16L             | 20 * KB + 8 - 32  | 20 * KB + 8   // 44
+        500L            | 500L              | 20 * KB + 8   // 45
+        500L            | 20 * KB + 8 - 500 | 20 * KB + 8   // 46
+        20 * KB + 8 - 5 | 5                 | 20 * KB + 8   // 47
+    }
+
+    @Unroll
+    def "Block block cross platform decryption tests"() {
+        when:
+        List<TestEncryptionBlob> list = getTestData("encryptedBlob.json")
+        symmetricKey = new SymmetricKey("symmKey1", Base64.getDecoder().decode(list.get(index).getKey()))
+        blobEncryptionPolicy = new BlobEncryptionPolicy(symmetricKey, null, false)
+        beac = ccAsync.getBlockBlobAsyncClient(URLParser.parse(bac.getBlobUrl()).blobName(), null, blobEncryptionPolicy)
+
+        byte[] encryptedBytes = Base64.getDecoder().decode(list.get(index).getEncryptedContent())
+        byte[] decryptedBytes = Base64.getDecoder().decode(list.get(index).getDecryptedContent())
+
+        Metadata metadata = new Metadata()
+
+        ObjectMapper objectMapper = new ObjectMapper()
+        metadata.put(Constants.EncryptionConstants.ENCRYPTION_DATA_KEY, objectMapper.writeValueAsString(list.get(index).getEncryptionData()))
+
+        bac.uploadWithResponse(Flux.just(ByteBuffer.wrap(encryptedBytes)), encryptedBytes.length, null, metadata, null).block()
+
+
+        ByteBuffer outputByteBuffer = collectBytesInBuffer(beac.download().block()).block()
+
+        then:
+        outputByteBuffer.array() == decryptedBytes
+
+        where:
+        index << [0, 1, 2, 3, 4]
+    }
+
+
+    def calcUpperBound(Long offset, Long count, Long size) {
+        if (count == null || offset + count > size) {
+            return size
+        }
+        return offset + count
+    }
+
+    def getTestData(String fileName) {
+        Path path = Paths.get(getClass().getClassLoader().getResource(fileName).toURI())
+        String json = new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
+        ObjectMapper mapper = new ObjectMapper()
+        CollectionType collectionType = mapper.getTypeFactory().constructCollectionType(List.class, TestEncryptionBlob.class)
+        List<TestEncryptionBlob> list = mapper.readValue(json, collectionType)
+        return list
+    }
+
+    // TODO: upload and buffered upload tests and upload from file and upload all blob types and BlobInputStream and OutputStream
 }
