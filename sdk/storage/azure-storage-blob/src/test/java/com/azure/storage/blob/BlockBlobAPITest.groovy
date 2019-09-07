@@ -1391,14 +1391,26 @@ class BlockBlobAPITest extends APISpec {
         def file = getRandomFile(KB)
 
         when:
-        beac.uploadFromFile(file.toPath().toString())
+        beac.uploadFromFile(file.toPath().toString()).block()
 
         then:
         compareDataToFile(beac.download().block(), file)
     }
 
     def "Encrypted download file"() {
+        setup:
+        def path = UUID.randomUUID().toString() + ".txt"
+        //def dataFlux = Flux.just(defaultData).map{buf -> buf.duplicate()}
 
+        when:
+        beac.upload(defaultFlux, defaultDataSize).block()
+        beac.downloadToFile(path).block()
+
+        then:
+        compareDataToFile(defaultFlux, new File(path))
+
+        cleanup:
+        new File(path).delete()
     }
 
     @Unroll

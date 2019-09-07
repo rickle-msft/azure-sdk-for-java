@@ -386,6 +386,8 @@ public final class BlockBlobAsyncClient extends BlobAsyncClient {
             throw logger.logExceptionAsError(new IllegalArgumentException("Block size should not exceed 100MB"));
         }
 
+        Metadata metadataFinal = metadata == null ? new Metadata() : metadata;
+
         return Mono.using(() -> uploadFileResourceSupplier(filePath),
             channel -> {
                 final SortedMap<Long, String> blockIds = new TreeMap<>();
@@ -397,9 +399,9 @@ public final class BlockBlobAsyncClient extends BlobAsyncClient {
                  */
                 if (this.encryptionPolicy != null) {
                     uploadOperation =
-                        this.encryptionPolicy.prepareToSendEncryptedRequest(FluxUtil.readFile(channel), metadata)
-                            .flatMap(data -> this.upload(data, blockSize, 2) // TODO: Put number of buffers in EncryptionPolicy?
-                            .then());
+                        // Encryption will happen in buffered upload.
+                        this.uploadWithResponse(FluxUtil.readFile(channel), blockSize, 2, null, metadataFinal, null) // TODO: Put number of buffers in EncryptionPolicy?
+                            .then();
                 }
                 else {
                     uploadOperation = Flux.fromIterable(sliceFile(filePath, blockSize))
@@ -410,7 +412,7 @@ public final class BlockBlobAsyncClient extends BlobAsyncClient {
                                 chunk.count()), chunk.count(), null);
                         })
                         .then(Mono.defer(() -> commitBlockListWithResponse(new ArrayList<>(blockIds.values()), headers,
-                            metadata, accessConditions)))
+                            metadataFinal, accessConditions)))
                         .then();
                 }
 

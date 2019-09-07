@@ -434,12 +434,13 @@ public class BlobAsyncClient {
                 encryptedRange.withAdjustedDownloadCount(response.headers().contentLength());
                 boolean padding = encryptedRange.toBlobRange().offset() + encryptedRange.toBlobRange().count() >
                     (blobSize(response.headers()) - 16);
+                Flux<ByteBuffer> rawBody = response.body(options).switchIfEmpty(Flux.just(ByteBuffer.wrap(new byte[0])));
                 return new SimpleResponse<>(
                     response.rawResponse(),
                     this.encryptionPolicy == null
-                        ? response.body(options).switchIfEmpty(Flux.just(ByteBuffer.wrap(new byte[0])))
-                        : this.encryptionPolicy.decryptBlob(response.headers().metadata(), response.body(options),
-                        encryptedRange, padding));
+                        ? rawBody
+                        : this.encryptionPolicy.decryptBlob(response.headers().metadata(), rawBody, encryptedRange,
+                        padding));
             });
     }
 
@@ -569,9 +570,9 @@ public class BlobAsyncClient {
             channel -> Mono.justOrEmpty(range)
                 .switchIfEmpty(getFullBlobRange(accessConditions))
                 .flatMapMany(rg -> Flux.fromIterable(sliceBlobRange(rg, blockSize)))
-                .flatMap(chunk -> this.download(chunk, accessConditions, rangeGetContentMD5, context)
+                .flatMap(chunk -> this.downloadWithResponse(chunk, options, accessConditions, rangeGetContentMD5, context)
                     .subscribeOn(Schedulers.elastic())
-                    .flatMap(dar -> FluxUtil.writeFile(dar.body(options), channel, chunk.offset() - (range == null ? 0 : range.offset()))))
+                    .flatMap(dar -> FluxUtil.writeFile(dar.value(), channel, chunk.offset() - (range == null ? 0 : range.offset()))))
                 .then(), this::downloadToFileCleanup);
     }
 
