@@ -13,7 +13,7 @@ import java.util.Objects;
 
 /**
  * An {@code AzureFileStore} is backed by an Azure Blob Storage container.
- * 
+ *
  * {@inheritDoc}
  */
 public final class AzureFileStore extends FileStore {

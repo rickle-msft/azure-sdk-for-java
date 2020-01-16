@@ -131,6 +131,8 @@ public final class AzureFileSystem extends FileSystem {
     }
 
     /**
+     * The separator used in this file system is {@code "/"}.
+     *
      * {@inheritDoc}
      */
     @Override
@@ -151,8 +153,7 @@ public final class AzureFileSystem extends FileSystem {
      */
     @Override
     public Iterable<FileStore> getFileStores() {
-        return
-            this.fileStores.values();
+        return this.fileStores.values();
     }
 
     /**
