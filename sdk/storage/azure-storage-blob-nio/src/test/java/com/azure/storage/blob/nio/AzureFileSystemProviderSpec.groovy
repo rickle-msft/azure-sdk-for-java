@@ -3,6 +3,7 @@
 
 package com.azure.storage.blob.nio
 
+import com.azure.storage.blob.BlobClient
 import com.azure.storage.blob.specialized.AppendBlobClient
 import spock.lang.Unroll
 
@@ -272,29 +273,30 @@ class AzureFileSystemProviderSpec extends APISpec {
         def fs = createFS(config)
         def containerClient =
             primaryBlobServiceClient.getBlobContainerClient(rootToContainer(fs.getDefaultDirectory().toString()))
-        AppendBlobClient blobClient
+        BlobClient blobClient
 
         when: "If nothing present, no directory"
-        blobClient = containerClient.getBlobClient("foo/bar").getAppendBlobClient()
+        blobClient = containerClient.getBlobClient("foo/bar")
 
         then:
-        !((AzureFileSystemProvider) fs.provider()).checkParentDirectoryExists(containerClient, fs.getPath("foo"))
+        !((AzureFileSystemProvider) fs.provider()).checkParentDirectoryExists(fs.getPath("foo/bar"))
 
         when: "Virtual directories suffice for parent existence"
-        blobClient.create()
+        blobClient.getAppendBlobClient().create()
 
         then:
-        ((AzureFileSystemProvider) fs.provider()).checkParentDirectoryExists(containerClient, fs.getPath("foo"))
+        ((AzureFileSystemProvider) fs.provider()).checkParentDirectoryExists(fs.getPath("foo/bar"))
 
         when: "Marker blobs suffice for parent existence"
         blobClient.delete()
-        blobClient = containerClient.getBlobClient("foo").getAppendBlobClient()
-        blobClient.createWithResponse(null, [(AzureFileSystemProvider.DIR_METADATA_MARKER):"true"], null, null, null)
+        blobClient = containerClient.getBlobClient("foo")
+        blobClient.getAppendBlobClient().createWithResponse(null,
+            [(AzureFileSystemProvider.DIR_METADATA_MARKER):"true"], null, null, null)
 
         then:
-        ((AzureFileSystemProvider) fs.provider()).checkParentDirectoryExists(containerClient, fs.getPath("foo"))
+        ((AzureFileSystemProvider) fs.provider()).checkParentDirectoryExists(fs.getPath("foo/bar"))
 
         expect: "Null directory means the path is targeting the root directory"
-        ((AzureFileSystemProvider) fs.provider()).checkParentDirectoryExists(containerClient, null)
+        ((AzureFileSystemProvider) fs.provider()).checkParentDirectoryExists(fs.getPath("foo"))
     }
 }
