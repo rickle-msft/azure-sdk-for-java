@@ -737,7 +737,7 @@ public class BlobAsyncClientBase {
      * <p>
      * The source must be a block blob no larger than 256MB. The source must also be either public or have a sas token
      * attached. The URL must be URL encoded.
-     * 
+     *
      * <p><strong>Code Samples</strong></p>
      *
      * {@codesnippet com.azure.storage.blob.specialized.BlobAsyncClientBase.copyFromUrlWithResponse#BlobCopyFromUrlOptions}
