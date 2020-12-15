@@ -713,17 +713,6 @@ public final class AzurePath implements Path {
     construct the client or perform any validation until it is requested.
      */
     BlobClient toBlobClient() throws IOException {
-        BlobContainerClient containerClient = this.toContainerClient();
-
-        String blobName = this.withoutRoot();
-        if (blobName.isEmpty()) {
-            throw new IOException("Cannot get a blob client to a path that only contains the root or is an empty path");
-        }
-
-        return containerClient.getBlobClient(blobName);
-    }
-
-    BlobContainerClient toContainerClient() throws IOException {
         // Converting to an absolute path ensures there is a container to operate on even if it is the default.
         // Normalizing ensures the path is clean.
         Path root = this.normalize().toAbsolutePath().getRoot();
@@ -733,7 +722,15 @@ public final class AzurePath implements Path {
         }
         String fileStoreName = this.rootToFileStore(root.toString());
 
-        return ((AzureFileStore) this.parentFileSystem.getFileStore(fileStoreName)).getContainerClient();
+        BlobContainerClient containerClient =
+            ((AzureFileStore) this.parentFileSystem.getFileStore(fileStoreName)).getContainerClient();
+
+        String blobName = this.withoutRoot();
+        if (blobName.isEmpty()) {
+            throw new IOException("Cannot get a blob client to a path that only contains the root or is an empty path");
+        }
+
+        return containerClient.getBlobClient(blobName);
     }
 
     /**

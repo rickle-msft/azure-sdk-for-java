@@ -67,6 +67,26 @@ abstract class AzureResource {
      */
     abstract boolean checkParentDirectoryExists() throws IOException;
 
+    /**
+     * Checks whether a directory exists by either being empty or having children.
+     */
+    abstract boolean checkDirectoryExists() throws IOException;
+
+    /**
+     * This method will check if a directory is extant and/or empty and accommodates virtual directories. This method
+     * will not check the status of root directories.
+     */
+    abstract DirectoryStatus checkDirStatus() throws IOException;
+
+    /**
+     * Creates the actual directory marker. This method should only be used when any necessary checks for proper
+     * conditions of directory creation (e.g. parent existence) have already been performed. Otherwise,
+     * {@link AzureFileSystemProvider#createDirectory(Path, FileAttribute[])} should be preferred.
+     *
+     * @param requestConditions Any necessary request conditions to pass when creating the directory blob.
+     */
+    abstract void putDirectoryBlob(BlobRequestConditions requestConditions);
+
     private static AzurePath validatePathInstanceType(Path path, ClientLogger logger) {
         if (!(path instanceof AzurePath)) {
             throw LoggingUtility.logError(logger, new IllegalArgumentException("This provider cannot operate on "

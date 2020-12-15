@@ -5,8 +5,10 @@ package com.azure.storage.blob.nio;
 
 import com.azure.core.util.logging.ClientLogger;
 import com.azure.storage.blob.BlobContainerClient;
+import com.azure.storage.blob.models.BlobRequestConditions;
 
 import java.io.IOException;
+import java.util.Collections;
 
 public class AzureResourceContainer extends AzureResource {
     private final ClientLogger logger = new ClientLogger(AzureResourceContainer.class);
@@ -19,16 +21,34 @@ public class AzureResourceContainer extends AzureResource {
         this.containerClient = path.toContainerClient();
     }
 
+    @Override
+    boolean checkParentDirectoryExists() {
+        throw LoggingUtility.logError(logger,
+            new UnsupportedOperationException("Operations which require validating parent existence such as copy and " +
+                "create are not supported on root directories."));
+    }
+
     /**
-     * Checks for the existence of the parent of the given path. We do not check for the actual marker blob as parents
-     * need only weakly exist.
-     *
-     * If the parent is a root (container), it will be assumed to exist, so it must be validated elsewhere that the
-     * container is a legitimate root within this file system.
+     * Root containers are always assumed to exist as they are validated on startup and cannot be deleted through the
+     * file system. No need to make a service call.
      */
     @Override
-    boolean checkParentDirectoryExists() throws IOException {
+    boolean checkDirectoryExists() throws IOException {
         return true;
+    }
+
+    @Override
+    DirectoryStatus checkDirStatus() throws IOException {
+        throw LoggingUtility.logError(logger,
+            new UnsupportedOperationException("Operations which require checking directory status such as copy and " +
+                "delete are not supported on root directories."));
+    }
+
+    @Override
+    void putDirectoryBlob(BlobRequestConditions requestConditions) {
+        throw LoggingUtility.logError(logger,
+            new UnsupportedOperationException("Operations which require checking directory status such as copy and " +
+                "delete are not supported on root directories."));
     }
 
     private void validateRoot() {

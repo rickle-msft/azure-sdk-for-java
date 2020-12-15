@@ -42,31 +42,25 @@ class AzureResourceBlob extends AzureResource{
         this.validateNotRoot();
         this.blobClient = this.path.toBlobClient();
     }
-    
+
     @Override
     boolean checkParentDirectoryExists() throws IOException {
         /*
-        If the parent is just the root (or null, which means the parent is implicitly the default directory which is a
+        If the parent is null (which means the parent is implicitly the default directory which is a
         root), that means we are checking a container, which is always considered to exist. Otherwise, perform normal
-        existence check.
+        existence check, which will be routed to a container or blob resource as appropriate
          */
         Path parent = this.path.getParent();
-        return (parent == null || parent.equals(path.getRoot()))
-            || new AzureResource(this.path.getParent()).checkDirectoryExists();
+        return parent == null || AzureResource.newAzureResource(this.path.getParent(), logger).checkDirectoryExists();
     }
 
-    /**
-     * Checks whether a directory exists by either being empty or having children.
-     */
+    @Override
     boolean checkDirectoryExists() throws IOException {
         DirectoryStatus dirStatus = this.checkDirStatus();
         return dirStatus.equals(DirectoryStatus.EMPTY) || dirStatus.equals(DirectoryStatus.NOT_EMPTY);
     }
 
-    /**
-     * This method will check if a directory is extant and/or empty and accommodates virtual directories. This method
-     * will not check the status of root directories.
-     */
+    @Override
     DirectoryStatus checkDirStatus() throws IOException {
         if (this.blobClient == null) {
             throw LoggingUtility.logError(logger, new IllegalArgumentException("The blob client was null."));
@@ -114,13 +108,7 @@ class AzureResourceBlob extends AzureResource{
         }
     }
 
-    /**
-     * Creates the actual directory marker. This method should only be used when any necessary checks for proper
-     * conditions of directory creation (e.g. parent existence) have already been performed. Otherwise,
-     * {@link AzureFileSystemProvider#createDirectory(Path, FileAttribute[])} should be preferred.
-     *
-     * @param requestConditions Any necessary request conditions to pass when creating the directory blob.
-     */
+    @Override
     void putDirectoryBlob(BlobRequestConditions requestConditions) {
         this.blobClient.getBlockBlobClient().commitBlockListWithResponse(Collections.emptyList(), this.blobHeaders,
             this.prepareMetadataForDirectory(), null, requestConditions, null, null);
