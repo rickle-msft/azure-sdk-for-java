@@ -208,4 +208,8 @@ public final class NioBlobInputStream extends InputStream {
     BlobInputStream getBlobInputStream() {
         return blobInputStream;
     }
+
+    Path getPath() {
+        return this.path;
+    }
 }

@@ -39,6 +39,7 @@ public class AzureSeekableByteChannel implements SeekableByteChannel {
 
     @Override
     public int read(ByteBuffer dst) throws IOException {
+        // fs open validated in inputStream.read. But we need to throw a ChannelClosedException rather than IoException
         validateOpen();
         int count = 0;
 
@@ -65,6 +66,7 @@ public class AzureSeekableByteChannel implements SeekableByteChannel {
 
     @Override
     public long position() throws IOException {
+        AzurePath.ensureFileSystemOpen(this.inputStream.getPath());
         validateOpen();
         return position;
     }
@@ -79,6 +81,7 @@ public class AzureSeekableByteChannel implements SeekableByteChannel {
 
     @Override
     public long size() throws IOException {
+        AzurePath.ensureFileSystemOpen(this.inputStream.getPath());
         validateOpen();
         return inputStream.getBlobInputStream().getProperties().getBlobSize();
     }
@@ -90,11 +93,13 @@ public class AzureSeekableByteChannel implements SeekableByteChannel {
 
     @Override
     public boolean isOpen() {
+        AzurePath.ensureFileSystemOpen(this.inputStream.getPath());
         return !this.closed;
     }
 
     @Override
     public void close() throws IOException {
+        AzurePath.ensureFileSystemOpen(this.inputStream.getPath());
         this.inputStream.close();
         this.closed = true;
     }

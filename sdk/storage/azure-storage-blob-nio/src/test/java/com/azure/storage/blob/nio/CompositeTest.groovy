@@ -27,4 +27,8 @@ class CompositeTest extends APISpec {
         Files.isDirectory(fs.getPath('mydir1/mydir2'))
         Files.isDirectory(fs.getPath('mydir1/mydir2/mydir3'))
     }
+
+    def "Files create"() {
+        Files.createFile()
+    }
 }
