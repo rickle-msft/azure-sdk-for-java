@@ -20,6 +20,7 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
+import java.nio.channels.ByteChannel;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.AccessMode;
@@ -31,6 +32,7 @@ import java.nio.file.FileStore;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystemAlreadyExistsException;
 import java.nio.file.FileSystemNotFoundException;
+import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
@@ -252,24 +254,36 @@ public final class AzureFileSystemProvider extends FileSystemProvider {
     }
 
     /**
-     * Unsupported. Use {@link #newInputStream(Path, OpenOption...)} or {@link #newOutputStream(Path, OpenOption...)}
-     * instead.
+     * Opens a {@link ByteChannel} to the given path that maintains a current position.
+     * <p>
+     * This type is primarily offered to support some jdk convenience methods such as
+     * {@link Files#createFile(Path, FileAttribute[])} which requires opening a channel and closing it. A very limited
+     * set of functionality is offered here. More specifically, only reads--no writes or seeks--are supported. Only
+     * {@link StandardOpenOption#READ} is supported. This type is not threadsafe.
+     * <p>
+     * {@link NioBlobInputStream} and {@link NioBlobOutputStream} are the preferred types for reading and writing blob
+     * data. use {@link #newInputStream(Path, OpenOption...)} or {@link #newOutputStream(Path, OpenOption...)} instead.
      *
-     * @param path the Path
-     * @param set open options
-     * @param fileAttributes attributes
-     * @return a new seekable byte channel
-     * @throws UnsupportedOperationException Operation is not supported.
-     * @throws IllegalArgumentException if the set contains an invalid combination of options
-     * @throws FileAlreadyExistsException if a file of that name already exists and the CREATE_NEW option is specified
-     * (optional specific exception)
+     * @param path the path to the file to open
+     * @param set options specifying how the file is opened
+     * @param fileAttributes attributes. Not supported as they can only be applied on file creation and this type is
+     * read only
+     * @throws IllegalArgumentException if an invalid combination of options is specified
+     * @throws UnsupportedOperationException if an unsupported option is specified
      * @throws IOException If an I/O error occurs.
      * @throws SecurityException never
+     * @return a new seekable byte channel
      */
     @Override
     public SeekableByteChannel newByteChannel(Path path, Set<? extends OpenOption> set,
             FileAttribute<?>... fileAttributes) throws IOException {
-        throw LoggingUtility.logError(logger, new UnsupportedOperationException());
+        if (fileAttributes != null && fileAttributes.length > 0) {
+            throw logger.logThrowableAsError(new UnsupportedOperationException("File attributes are not supported on a "
+                + "new byte channel because byte channels are read only and cannot create a file."));
+        }
+        return new AzureSeekableByteChannel(
+            (NioBlobInputStream) this.newInputStream(path, set.toArray(new OpenOption[0])));
+        // theToArray method will allocate a new array of the right size
     }
 
     /**
