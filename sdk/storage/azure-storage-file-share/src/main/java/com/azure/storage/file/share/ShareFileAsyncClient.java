@@ -21,11 +21,15 @@ import com.azure.core.util.logging.ClientLogger;
 import com.azure.core.util.polling.LongRunningOperationStatus;
 import com.azure.core.util.polling.PollResponse;
 import com.azure.core.util.polling.PollerFlux;
+import com.azure.storage.common.ParallelTransferOptions;
+import com.azure.storage.common.ProgressReporter;
 import com.azure.storage.common.StorageSharedKeyCredential;
 import com.azure.storage.common.Utility;
 import com.azure.storage.common.implementation.Constants;
 import com.azure.storage.common.implementation.SasImplUtils;
 import com.azure.storage.common.implementation.StorageImplUtils;
+import com.azure.storage.common.implementation.UploadBufferPool;
+import com.azure.storage.common.implementation.UploadUtils;
 import com.azure.storage.file.share.implementation.AzureFileStorageImpl;
 import com.azure.storage.file.share.implementation.models.CopyFileSmbInfo;
 import com.azure.storage.file.share.implementation.models.FilesCreateResponse;
@@ -64,6 +68,7 @@ import com.azure.storage.file.share.models.ShareFileUploadRangeFromUrlInfo;
 import com.azure.storage.file.share.models.ShareRequestConditions;
 import com.azure.storage.file.share.models.ShareStorageException;
 import com.azure.storage.file.share.options.ShareFileListRangesDiffOptions;
+import com.azure.storage.file.share.options.ShareFileParallelUploadOptions;
 import com.azure.storage.file.share.sas.ShareServiceSasSignatureValues;
 import reactor.core.Exceptions;
 import reactor.core.publisher.Flux;
@@ -84,12 +89,19 @@ import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -99,6 +111,7 @@ import static com.azure.core.util.FluxUtil.pagedFluxError;
 import static com.azure.core.util.FluxUtil.withContext;
 import static com.azure.core.util.tracing.Tracer.AZ_TRACING_NAMESPACE_KEY;
 import static com.azure.storage.common.Utility.STORAGE_TRACING_NAMESPACE_VALUE;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 
 /**
@@ -120,6 +133,7 @@ import static com.azure.storage.common.Utility.STORAGE_TRACING_NAMESPACE_VALUE;
 public class ShareFileAsyncClient {
     private final ClientLogger logger = new ClientLogger(ShareFileAsyncClient.class);
     static final long FILE_DEFAULT_BLOCK_SIZE = 4 * 1024 * 1024L;
+    static final long FILE_MAX_UPLOAD_CHUNK_SIZE = 4 * 1024 * 1024L;
     private static final long DOWNLOAD_UPLOAD_CHUNK_TIMEOUT = 300;
 
     private final AzureFileStorageImpl azureFileStorageClient;
@@ -1332,6 +1346,125 @@ public class ShareFileAsyncClient {
                 length, data, null, null, requestConditions.getLeaseId(),
                 context.addData(AZ_TRACING_NAMESPACE_KEY, STORAGE_TRACING_NAMESPACE_VALUE))
             .map(this::uploadResponse);
+    }
+
+    /**
+     * Creates a new block blob, or updates the content of an existing block blob.
+     * <p>
+     * Updating an existing block blob overwrites any existing metadata on the blob. Partial updates are not supported
+     * with this method; the content of the existing blob is overwritten with the new content. To perform a partial
+     * update of a block blob's, use {@link BlockBlobAsyncClient#stageBlock(String, Flux, long) stageBlock} and {@link
+     * BlockBlobAsyncClient#commitBlockList(List) commitBlockList}. For more information, see the
+     * <a href="https://docs.microsoft.com/rest/api/storageservices/put-block">Azure Docs for Put Block</a> and the
+     * <a href="https://docs.microsoft.com/rest/api/storageservices/put-block-list">Azure Docs for Put Block List</a>.
+     * <p>
+     * The data passed need not support multiple subscriptions/be replayable as is required in other upload methods when
+     * retries are enabled, and the length of the data need not be known in advance. Therefore, this method does
+     * support uploading any arbitrary data source, including network streams. This behavior is possible because this
+     * method will perform some internal buffering as configured by the blockSize and numBuffers parameters, so while
+     * this method may offer additional convenience, it will not be as performant as other options, which should be
+     * preferred when possible.
+     * <p>
+     * Typically, the greater the number of buffers used, the greater the possible parallelism when transferring the
+     * data. Larger buffers means we will have to stage fewer blocks and therefore require fewer IO operations. The
+     * trade-offs between these values are context-dependent, so some experimentation may be required to optimize inputs
+     * for a given scenario.
+     * <p>
+     * To avoid overwriting, pass "*" to {@link BlobRequestConditions#setIfNoneMatch(String)}.
+     *
+     * <p><strong>Code Samples</strong></p>
+     *
+     * {@codesnippet com.azure.storage.blob.BlobAsyncClient.uploadWithResponse#BlobParallelUploadOptions}
+     *
+     * <p><strong>Using Progress Reporting</strong></p>
+     *
+     * {@codesnippet com.azure.storage.blob.BlobAsyncClient.uploadWithResponse#BlobParallelUploadOptions}
+     *
+     * @param options {@link BlobParallelUploadOptions}. Unlike other upload methods, this method does not require that
+     * the {@code Flux} be replayable. In other words, it does not have to support multiple subscribers and is not
+     * expected to produce the same values across subscriptions.
+     * @return A reactive response containing the information of the uploaded block blob.
+     */
+    @ServiceMethod(returns = ReturnType.SINGLE)
+    public Mono<Response<ShareFileUploadInfo>> uploadWithResponse(ShareFileParallelUploadOptions options) {
+        /*
+        The following is catalogue of all the places we allocate memory/copy in any upload method a justifaction for
+        that case current as of 1/13/21.
+        - Async buffered upload chunked upload: We used an UploadBufferPool. This will allocate memory as needed up to
+        the configured maximum. This is necessary to support replayability on retires. Each flux to come out of the pool
+        is a Flux.just() of up to two deep copied buffers, so it is replayable. It also allows us to optimize the upload
+        by uploading the maximum amount per block. Finally, in the case of chunked uploading, it allows the customer to
+        pass data without knowing the size. Note that full upload does not need a deep copy because the Flux emitted by
+        the PayloadSizeGate in the full upload case is already replayable and the length is maintained by the gate.
+        - Sync buffered upload: converting the input stream to a flux involves creating a buffer for each stream read.
+        Using a new buffer per read ensures that the reads are safe and not overwriting data in buffers that were passed
+        to the async upload but have not yet been sent. This covers both full and chunked uploads in the sync case.
+        - BlobOutputStream: A deep copy is made of any buffer passed to write. While async copy does streamline our code
+        and allow for some potential parallelization, this extra copy is necessary to ensure that customers writing to
+        the stream in a tight loop are not overwriting data previously given to the stream before it has been sent.
+
+        Taken together, these should support retries and protect against data being overwritten in all upload scenarios.
+
+        One note is that there is no deep copy in the uploadFull method. This is unnecessary as explained in
+        uploadFullOrChunked because the Flux coming out of the size gate in that case is already replayable and reusing
+        buffers is not a common scenario for async like it is in sync (and we already buffer in sync to convert from a
+        stream).
+         */
+        try {
+            StorageImplUtils.assertNotNull("options", options);
+
+            final ParallelTransferOptions parallelTransferOptions =
+                ModelHelper.populateAndApplyDefaults(options.getParallelTransferOptions());
+
+            Flux<ByteBuffer> data = options.getDataFlux() == null ? Utility.convertStreamToByteBuffer(
+                options.getDataStream(), options.getLength(),
+                // We can only buffer up to max int due to restrictions in ByteBuffer.
+                (int) Math.min(Integer.MAX_VALUE, parallelTransferOptions.getBlockSizeLong()), false)
+                : options.getDataFlux();
+
+            return uploadInChunks(data, parallelTransferOptions, options.getRequestConditions());
+        } catch (RuntimeException ex) {
+            return monoError(logger, ex);
+        }
+    }
+
+    private Mono<Response<ShareFileUploadInfo>> uploadInChunks(Flux<ByteBuffer> data,
+        ParallelTransferOptions parallelTransferOptions, ShareRequestConditions requestConditions) {
+        // TODO: Sample/api reference
+        // See ProgressReporter for an explanation on why this lock is necessary and why we use AtomicLong.
+        AtomicLong totalProgress = new AtomicLong();
+        Lock progressLock = new ReentrantLock();
+
+        // Validation done in the constructor.
+        /*
+        We use maxConcurrency + 1 for the number of buffers because one buffer will typically be being filled while the
+        others are being sent.
+         */
+        UploadBufferPool pool = new UploadBufferPool(parallelTransferOptions.getMaxConcurrency() + 1,
+            parallelTransferOptions.getBlockSizeLong(), FILE_MAX_UPLOAD_CHUNK_SIZE);
+
+        Flux<ByteBuffer> chunkedSource = UploadUtils.chunkSource(data, parallelTransferOptions));
+
+        AtomicLong offset = new AtomicLong(0);
+        /*
+         Write to the pool and upload the output.
+         */
+        return chunkedSource.concatMap(pool::write)
+            .concatWith(Flux.defer(pool::flush))
+            .flatMapSequential(bufferAggregator -> {
+                // Report progress as necessary.
+                Flux<ByteBuffer> progressData = ProgressReporter.addParallelProgressReporting(
+                    bufferAggregator.asFlux(),
+                    parallelTransferOptions.getProgressReceiver(),
+                    progressLock,
+                    totalProgress);
+
+                return this.uploadWithResponse(progressData, bufferAggregator.length(),
+                    offset.getAndAdd(bufferAggregator.length()), requestConditions)
+                    .doFinally(x -> pool.returnBuffer(bufferAggregator))
+                    .flux();
+            }, parallelTransferOptions.getMaxConcurrency())
+            .last();
     }
 
     /**
